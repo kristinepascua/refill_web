@@ -25,22 +25,19 @@ const STEPS = [
 ]
 const STEP_INDEX = { pending: 0, processing: 1, shipped: 2, delivered: 3 }
 
+// Orders can only be cancelled before they're shipped
+const CANCELLABLE_STATUSES = ['pending', 'processing']
+
 export default function TrackPage({ navigate, orderId, order: passedOrder }) {
-  const { orders } = useOrders()
-  const [order,      setOrder]      = useState(passedOrder || null)
-  const [loading,    setLoading]    = useState(false)
+  const { orders, refreshOrders } = useOrders()
+  const [order, setOrder]           = useState(passedOrder || null)
+  const [loading, setLoading]       = useState(false)
   const [selectedId, setSelectedId] = useState(orderId || null)
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelling, setCancelling]       = useState(false)
+  const [cancelError, setCancelError]     = useState(null)
 
-  // ── ORDER NOTES state ────────────────────────────────────────
-  const [notes,       setNotes]       = useState([])       // list of OrderNote objects
-  const [notesLoading,setNotesLoading]= useState(false)
-  const [newNote,     setNewNote]     = useState('')        // text in the "add note" input
-  const [noteError,   setNoteError]   = useState('')        // FORM VALIDATION error
-  const [savingNote,  setSavingNote]  = useState(false)
-  // For inline edit: { id, content } of the note being edited, or null
-  const [editingNote, setEditingNote] = useState(null)
-  const [editError,   setEditError]   = useState('')        // FORM VALIDATION error for edit
-
+  // Active orders from context
   const activeOrders = orders.filter(o =>
     ['pending', 'processing', 'shipped'].includes(o.status?.toLowerCase())
   )
@@ -64,78 +61,25 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
     }
   }, [selectedId])
 
-  // ── CRUD: READ — fetch all notes for this order ───────────────
-  const fetchNotes = async (id) => {
-    setNotesLoading(true)
+  const handleCancelOrder = async () => {
+    setCancelling(true)
+    setCancelError(null)
     try {
-      const r = await ordersAPI.notes.getAll(id)
-      setNotes(Array.isArray(r.data) ? r.data : r.data?.results || [])
-    } catch {
-      setNotes([])
-    } finally {
-      setNotesLoading(false)
-    }
-  }
-
-  // ── FORM VALIDATION — note text ───────────────────────────────
-  const validateNote = (text, setErr) => {
-    if (!text.trim())         { setErr('Note cannot be empty.');            return false }
-    if (text.length > 1000)   { setErr('Note cannot exceed 1000 characters.'); return false }
-    setErr('')
-    return true
-  }
-
-  // ── CRUD: CREATE — add a new note ─────────────────────────────
-  const handleAddNote = async () => {
-    if (!validateNote(newNote, setNoteError)) return
-    setSavingNote(true)
-    try {
-      const r = await ordersAPI.notes.create(order.id, {
-        content:   newNote.trim(),
-        note_type: 'customer',
-      })
-      setNotes(prev => [...prev, r.data])   // append new note to list
-      setNewNote('')
-      setNoteError('')
+      await ordersAPI.updateStatus(order.id, 'cancelled')
+      setOrder(prev => ({ ...prev, status: 'cancelled' }))
+      setConfirmCancel(false)
+      // Refresh orders list in context if available
+      if (typeof refreshOrders === 'function') refreshOrders()
     } catch (err) {
-      setNoteError(err.response?.data?.content?.[0] || 'Failed to save note.')
+      setCancelError('Failed to cancel order. Please try again.')
     } finally {
-      setSavingNote(false)
+      setCancelling(false)
     }
   }
 
-  // ── CRUD: UPDATE — save an edited note ────────────────────────
-  const handleSaveEdit = async () => {
-    if (!validateNote(editingNote.content, setEditError)) return
-    setSavingNote(true)
-    try {
-      const r = await ordersAPI.notes.update(order.id, editingNote.id, {
-        content: editingNote.content.trim(),
-      })
-      // Replace old note in list with updated one
-      setNotes(prev => prev.map(n => n.id === editingNote.id ? r.data : n))
-      setEditingNote(null)
-      setEditError('')
-    } catch (err) {
-      setEditError(err.response?.data?.content?.[0] || 'Failed to update note.')
-    } finally {
-      setSavingNote(false)
-    }
-  }
-
-  // ── CRUD: DELETE — remove a note ─────────────────────────────
-  const handleDeleteNote = async (noteId) => {
-    if (!window.confirm('Delete this note?')) return
-    try {
-      await ordersAPI.notes.delete(order.id, noteId)
-      setNotes(prev => prev.filter(n => n.id !== noteId))   // remove from list
-    } catch {
-      alert('Could not delete note. Please try again.')
-    }
-  }
-
-  const currentStep = STEP_INDEX[order?.status?.toLowerCase()] ?? 0
-  const isCancelled = order?.status?.toLowerCase() === 'cancelled'
+  const currentStep  = STEP_INDEX[order?.status?.toLowerCase()] ?? 0
+  const isCancelled  = order?.status?.toLowerCase() === 'cancelled'
+  const isCancellable = CANCELLABLE_STATUSES.includes(order?.status?.toLowerCase())
 
   return (
     <div className="track-page">
@@ -148,7 +92,7 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
             {activeOrders.map(o => (
               <button key={o.id}
                 className={`track-pill ${selectedId === o.id ? 'active' : ''}`}
-                onClick={() => { setSelectedId(o.id); setOrder(o); setNotes([]) }}>
+                onClick={() => { setSelectedId(o.id); setOrder(o); setConfirmCancel(false) }}>
                 #{o.id} — {o.station || o.shipping_address || 'Order'}
               </button>
             ))}
@@ -234,6 +178,41 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
                   <button className="btn-primary" onClick={() => navigate('browse')} style={{ marginTop: '12px' }}>
                     Order Again
                   </button>
+                </div>
+              )}
+
+              {/* Cancel order section — only shown for pending/processing */}
+              {isCancellable && (
+                <div className="track-cancel-wrap">
+                  {!confirmCancel ? (
+                    <button
+                      className="btn-cancel-order"
+                      onClick={() => { setConfirmCancel(true); setCancelError(null) }}
+                    >
+                      Cancel Order
+                    </button>
+                  ) : (
+                    <div className="track-cancel-confirm">
+                      <p>Are you sure you want to cancel this order?</p>
+                      {cancelError && <p className="cancel-error">{cancelError}</p>}
+                      <div className="cancel-confirm-actions">
+                        <button
+                          className="btn-cancel-confirm"
+                          onClick={handleCancelOrder}
+                          disabled={cancelling}
+                        >
+                          {cancelling ? 'Cancelling…' : 'Yes, Cancel'}
+                        </button>
+                        <button
+                          className="btn-cancel-dismiss"
+                          onClick={() => { setConfirmCancel(false); setCancelError(null) }}
+                          disabled={cancelling}
+                        >
+                          Keep Order
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>
