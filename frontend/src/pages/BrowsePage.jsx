@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { productsAPI } from '../api/products'
+import StationModal from '../modals/StationModals'
 
 import {
   FaTint,
@@ -28,14 +29,16 @@ const SAMPLE_STATIONS = [
   { id: 6, name: 'Mountain Spring Co.', icon: <GiMountains />, distance: '3.8 km', pricePerGallon: 30, deliveryFee: 20, eta: '30–40 min', rating: 4.9, waterTypes: ['Mineral'],            open: true  },
 ]
 
-function StationCard({ station, onOrder, onSchedule }) {
+function StationCard({ station, onOrder, onSchedule, onViewDetails }) {
   return (
     <div className={`station-card ${!station.open ? 'closed' : ''}`}>
       <div className="sc-top">
         <div className="sc-left">
           <div className="sc-emoji">{station.icon}</div>
           <div>
-            <div className="sc-name">{station.name}</div>
+            <button className="sc-name sc-name-link" onClick={() => onViewDetails(station)}>
+              {station.name}
+            </button>
             <div className="sc-dist"><FaMapMarkerAlt/> {station.distance}</div>
           </div>
         </div>
@@ -106,6 +109,7 @@ export default function BrowsePage({ navigate }) {
   const [filter, setFilter] = useState('All')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('distance')
+  const [selectedStation, setSelectedStation] = useState(null)  // controls StationModal
 
   const STATION_ICONS = [
     <FaTint />,
@@ -215,11 +219,22 @@ export default function BrowsePage({ navigate }) {
                 station={s}
                 onOrder={station => navigate('order', { station })}
                 onSchedule={station => navigate('schedule', { station })}
+                onViewDetails={s => setSelectedStation(s)}
               />
             ))}
           </div>
         )
       }
+
+      {/* StationModal — opens when user clicks a station name */}
+      {selectedStation && (
+        <StationModal
+          station={selectedStation}
+          onClose={() => setSelectedStation(null)}
+          onOrder={s => { setSelectedStation(null); navigate('order', { station: s }) }}
+          onSchedule={s => { setSelectedStation(null); navigate('schedule', { station: s }) }}
+        />
+      )}
 
     </div>
   )

@@ -1,16 +1,19 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import CategoryViewSet, ProductViewSet
+from rest_framework_nested import routers
+from .views import CategoryViewSet, ProductViewSet, StationReviewViewSet
 
-# 1. Initialize the router
-router = DefaultRouter()
-
-# 2. Register your actual ViewSets
-# Use 'categories' for Category and '' (empty) for Products
+# Root router — same routes as before
+router = routers.DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
-router.register(r'', ProductViewSet, basename='product')
+router.register(r'',           ProductViewSet,  basename='product')
 
-# 3. Define urlpatterns
+# Nested router — reviews live under each product/station
+# GET/POST  /api/products/{station_pk}/reviews/
+# GET/PATCH/DELETE  /api/products/{station_pk}/reviews/{id}/
+products_router = routers.NestedDefaultRouter(router, r'', lookup='station')
+products_router.register(r'reviews', StationReviewViewSet, basename='station-reviews')
+
 urlpatterns = [
     path('', include(router.urls)),
+    path('', include(products_router.urls)),
 ]

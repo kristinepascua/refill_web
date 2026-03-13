@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useOrders } from '../context/OrdersContext'
 import { FaShoppingCart, FaCalendarAlt, FaHistory, FaTint, FaStar, FaMapMarkerAlt } from "react-icons/fa"
+import StationModal from '../modals/StationModals'
 
 const fmt = (n) => `₱${Number(n).toLocaleString()}`
 
@@ -8,6 +10,9 @@ export default function HomePage({ navigate }) {
 
   const { user } = useAuth()
   const { orders } = useOrders()
+  const [selectedStation, setSelectedStation] = useState(null)
+
+  const aquapure = { id: 1, name: 'AquaPure Station', icon: <FaTint/>, distance: '0.5 km', pricePerGallon: 25, deliveryFee: 20, eta: '15-20 min', rating: 4.8, waterTypes: ['Purified','Alkaline'], open: true }
 
   const recentOrders = orders.slice(0,3)
 
@@ -69,7 +74,7 @@ export default function HomePage({ navigate }) {
       </div>
 
       <div>
-        <h3 className="station-name">AquaPure Station</h3>
+        <button className="sc-name sc-name-link" onClick={() => setSelectedStation(aquapure)}>AquaPure Station</button>
         <p className="station-distance">
           <FaMapMarkerAlt/> 0.5 km
         </p>
@@ -165,6 +170,16 @@ export default function HomePage({ navigate }) {
 </main>
 
 </div>
+
+
+      {selectedStation && (
+        <StationModal
+          station={selectedStation}
+          onClose={() => setSelectedStation(null)}
+          onOrder={s => { setSelectedStation(null); navigate('order', { station: s }) }}
+          onSchedule={s => { setSelectedStation(null); navigate('schedule', { station: s }) }}
+        />
+      )}
 
 </>
   )
