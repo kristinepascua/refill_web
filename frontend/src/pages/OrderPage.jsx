@@ -1,270 +1,304 @@
-// =============================================================
 // OrderPage.jsx
-// =============================================================
-// CRUD: CREATE order  → POST /api/orders/
-// CRUD: CREATE note   → POST /api/orders/{id}/notes/  ← ORDER NOTE
-//
-// ORDER NOTE flow:
-//   Step 1 — customer types an optional note
-//   Step 2 — note shown in review panel
-//   Confirm — note saved to DB after order is created
-//   TrackPage — note displayed under order details
-//   HistoryPage — note count badge shown on order row
-//
-// FORM VALIDATION:
-//   - Address required, min 10 chars
-//   - Quantity min 1
-//   - Note max 1000 chars
-// =============================================================
+// CRUD: CREATE order → POST /api/orders/
+// CRUD: CREATE item  → POST /api/orders/{id}/items/
+// CRUD: CREATE note  → POST /api/orders/{id}/notes/
 
 import { useState } from 'react'
 import { useOrders } from '../context/OrdersContext'
 import { ordersAPI } from '../api/orders'
+import './order.css'
 
 const fmt = (n) => `₱${Number(n).toLocaleString()}`
+
+const STEPS = ['Configure', 'Review', 'Confirm']
 
 export default function OrderPage({ navigate, station }) {
   const { createOrder } = useOrders()
 
-  const [qty,     setQty]     = useState(1)
-  const [address, setAddress] = useState('Carmen, Cagayan de Oro City')
-  const [type,    setType]    = useState(station?.waterTypes?.[0] || 'Purified')
-  const [step,    setStep]    = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [orderId, setOrderId] = useState(null)
-
-  // ORDER NOTE — optional message customer leaves with the order
+  const [qty,      setQty]      = useState(1)
+  const [address,  setAddress]  = useState('Carmen, Cagayan de Oro City')
+  const [type,     setType]     = useState(station?.waterTypes?.[0] || 'Purified')
+  const [step,     setStep]     = useState(1)
+  const [loading,  setLoading]  = useState(false)
+  const [orderId,  setOrderId]  = useState(null)
   const [noteText, setNoteText] = useState('')
-
-  // FORM VALIDATION — field error messages
-  const [errors, setErrors] = useState({})
+  const [errors,   setErrors]   = useState({})
 
   if (!station) return (
-    <div className="order-page">
-      <div className="empty">
-        <span>💧</span><p>No station selected.</p>
-        <button className="btn-primary" onClick={() => navigate('browse')}>Browse Stations</button>
+    <div className="op-page">
+      <div className="op-card" style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:40 }}>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:48, marginBottom:12 }}>💧</div>
+          <p style={{ color:'var(--muted)', marginBottom:16 }}>No station selected.</p>
+          <button className="op-btn-primary" onClick={() => navigate('browse')}>Browse Stations</button>
+        </div>
       </div>
     </div>
   )
 
   const subtotal = qty * station.pricePerGallon
-  const total    = subtotal + station.deliveryFee
+  const total    = subtotal + (station.deliveryFee || 0)
 
-  // ── FORM VALIDATION ──────────────────────────────────────────
-  const validateStep1 = () => {
+  const validate = () => {
     const e = {}
-    if (!address.trim())                e.address = 'Delivery address is required.'
-    else if (address.trim().length < 10) e.address = 'Please enter a complete address (at least 10 characters).'
+    if (!address.trim())                 e.address = 'Delivery address is required.'
+    else if (address.trim().length < 10) e.address = 'Please enter a complete address (at least 10 chars).'
     if (qty < 1)                         e.qty     = 'Quantity must be at least 1.'
     if (noteText.length > 1000)          e.note    = 'Note cannot exceed 1000 characters.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
-  const handleReview = () => { if (validateStep1()) setStep(2) }
+  const handleReview = () => { if (validate()) setStep(2) }
 
-  // ── CRUD: CREATE order → CREATE note ─────────────────────────
   const handleConfirm = async () => {
-    setLoading(true)
-    setErrors({})
+    setLoading(true); setErrors({})
 
-    // CRUD: CREATE — place the order
+    // Step 1: Create the order
     const result = await createOrder({
       shipping_address: address,
-      status: 'pending',
-      notes: `${qty}x ${type} from ${station.name}`,
+      status:           'pending',
+      notes:            `${qty}x ${type} from ${station.name}`,
     })
 
     if (!result.success) {
       const e = result.errors || {}
       setErrors({ server: e.shipping_address?.[0] || e.notes?.[0] || e.detail || 'Something went wrong.' })
-      setStep(1)
-      setLoading(false)
-      return
+      setStep(1); setLoading(false); return
     }
 
     const newOrderId = result.data.id
 
-    // CRUD: CREATE note — only sent if customer typed something
-    // Stored in OrderNote table as note_type: 'customer'
-    // Visible in TrackPage under "Your Notes" section
-    if (noteText.trim()) {
-      try {
-        await ordersAPI.notes.create(newOrderId, {
-          content:   noteText.trim(),
-          note_type: 'customer',
-        })
-      } catch {
-        // Note save failed — order still placed, warn silently
-        console.warn('Note could not be saved, but order was placed successfully.')
-      }
+    // Step 2: Create the order item separately so Django computes total_price
+    try {
+      await ordersAPI.items.create(newOrderId, {
+        product_id: station.id,
+        quantity:   qty,
+        price:      station.pricePerGallon,
+      })
+    } catch (err) {
+      console.warn('Item creation failed:', err.response?.data)
+      // Order was still placed — don't block the user
     }
 
-    setOrderId(newOrderId)
-    setStep(3)
-    setLoading(false)
+    // Step 3: Save optional note
+    if (noteText.trim()) {
+      try { await ordersAPI.notes.create(newOrderId, { content: noteText.trim(), note_type: 'customer' }) }
+      catch { console.warn('Note save failed, order was still placed.') }
+    }
+
+    setOrderId(newOrderId); setStep(3); setLoading(false)
   }
 
-  return (
-    <div className="order-page">
-
-      {step < 3 && (
-        <button className="order-back" onClick={() => step === 1 ? navigate('browse') : setStep(1)}>
-          ← {step === 1 ? 'Back to Browse' : 'Back'}
-        </button>
-      )}
-
-      {step < 3 && (
-        <div className="step-indicator">
-          <div className={`step ${step >= 1 ? 'active' : ''}`}><span>1</span> Configure</div>
-          <div className="step-line" />
-          <div className={`step ${step >= 2 ? 'active' : ''}`}><span>2</span> Review</div>
-          <div className="step-line" />
-          <div className={`step ${step >= 3 ? 'active' : ''}`}><span>3</span> Confirm</div>
-        </div>
-      )}
-
-      <div className="order-container">
-
-        {step < 3 && (
-          <div className="order-station-header">
-            <span className="order-station-emoji">{station.emoji}</span>
+  /* ── Success screen ── */
+  if (step === 3) return (
+    <div className="op-page">
+      <div className="op-card">
+        <div className="op-sidebar">
+          <div className="op-sidebar__title">Order<br />Complete</div>
+          <div className="op-station-pill">
+            <div className="op-station-pill__icon">{station.emoji || '💧'}</div>
             <div>
-              <div className="order-station-name">{station.name}</div>
-              <div className="order-station-meta">📍 {station.distance} · ⏱ {station.eta} · ⭐ {station.rating}</div>
+              <div className="op-station-pill__name">{station.name}</div>
+              <div className="op-station-pill__meta"><span>Order #{orderId}</span></div>
             </div>
           </div>
-        )}
+        </div>
+        <div className="op-content">
+          <div className="op-success">
+            <div className="op-success__orb">💧</div>
+            <h2 className="op-success__title">Order Placed!</h2>
+            <p className="op-success__sub">
+              Your water is on its way from <strong>{station.name}</strong>
+            </p>
+            <p className="op-success__eta">ETA: <strong>{station.eta || '—'}</strong></p>
+            {orderId && <div className="op-success__id">Order #{orderId}</div>}
+            {noteText.trim() && <div className="op-success__note">📝 Note saved: <em>"{noteText}"</em></div>}
+            <div className="op-success__actions">
+              <button className="op-btn-primary" onClick={() => navigate('track', { orderId })}>📍 Track Order</button>
+              <button className="op-btn-ghost"   onClick={() => navigate('home')}>Back to Home</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 
-        {/* ── Step 1: Configure ── */}
-        {step === 1 && (
-          <div className="order-layout">
-            <div className="order-form">
+  return (
+    <div className="op-page">
+      <div className="op-card">
 
-              {errors.server && <div className="form-error-banner">⚠️ {errors.server}</div>}
+        {/* ── Sidebar ── */}
+        <div className="op-sidebar">
+          <button className="op-sidebar__back"
+            onClick={() => step === 1 ? navigate('browse') : setStep(step - 1)}>
+            ← {step === 1 ? 'Back to Browse' : 'Back'}
+          </button>
 
-              {/* Water Type */}
-              <div className="form-section">
-                <label className="form-label">Water Type</label>
-                <div className="type-pills">
-                  {station.waterTypes.map(t => (
-                    <button key={t} className={`type-pill ${type === t ? 'active' : ''}`} onClick={() => setType(t)}>{t}</button>
-                  ))}
+          <div className="op-sidebar__title">Place an<br />Order</div>
+
+          <div className="op-steps">
+            {STEPS.map((label, i) => {
+              const s      = i + 1
+              const isLast = i === STEPS.length - 1
+              const isDone   = step > s
+              const isActive = step === s
+              return (
+                <div key={label} className="op-step">
+                  <div className="op-step__track">
+                    <div className={`op-step__circle${isActive ? ' op-step--active' : ''}${isDone ? ' op-step--done' : ''}`}>
+                      {isDone ? '✓' : s}
+                    </div>
+                    {!isLast && (
+                      <div className="op-step__line"
+                        style={{ background: isDone ? 'var(--blue-mid)' : 'rgba(255,255,255,.15)' }} />
+                    )}
+                  </div>
+                  <div className="op-step__info">
+                    <div className={`op-step__label${isActive ? ' op-step--active' : ''}${isDone ? ' op-step--done' : ''}`}>
+                      {label}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )
+            })}
+          </div>
 
-              {/* Quantity */}
-              <div className="form-section">
-                <label className="form-label">Number of Gallons</label>
-                <div className="qty-control">
-                  <button className="qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))}>−</button>
-                  <span className="qty-val">{qty}</span>
-                  <button className="qty-btn" onClick={() => setQty(q => q + 1)}>+</button>
+          <div className="op-station-pill">
+            <div className="op-station-pill__icon">{station.emoji || '💧'}</div>
+            <div>
+              <div className="op-station-pill__name">{station.name}</div>
+              <div className="op-station-pill__meta">
+                {station.distance && station.distance !== '—' && <span>📍 {station.distance}</span>}
+                {station.eta      && station.eta      !== '—' && <span>⏱ {station.eta}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Content ── */}
+        <div className="op-content">
+
+          {/* ── Step 1: Configure ── */}
+          {step === 1 && <>
+            <div className="op-content__section-title">Your Order Details</div>
+
+            {errors.server && <div className="op-error-banner">⚠️ {errors.server}</div>}
+
+            <div className="op-field">
+              <label className="op-label">Water Type</label>
+              <div className="op-type-pills">
+                {station.waterTypes.map(t => (
+                  <button key={t}
+                    className={`op-type-pill${type === t ? ' op-type-pill--on' : ''}`}
+                    onClick={() => setType(t)}>{t}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="op-field">
+              <label className="op-label">Number of Gallons</label>
+              <div className="op-qty">
+                <button className="op-qty__btn" onClick={() => setQty(q => Math.max(1, q - 1))}>−</button>
+                <span className="op-qty__val">{qty}</span>
+                <button className="op-qty__btn" onClick={() => setQty(q => q + 1)}>+</button>
+              </div>
+              {errors.qty
+                ? <p className="op-err">{errors.qty}</p>
+                : <p className="op-hint">Minimum 1 gallon per order</p>}
+            </div>
+
+            <div className="op-field">
+              <label className="op-label">Delivery Address</label>
+              <input className={`op-input${errors.address ? ' op-input--err' : ''}`}
+                value={address}
+                onChange={e => { setAddress(e.target.value); if (errors.address) setErrors(p => ({...p, address: null})) }}
+                placeholder="Enter your full delivery address" />
+              {errors.address && <p className="op-err">{errors.address}</p>}
+            </div>
+
+            <div className="op-field">
+              <label className="op-label">
+                Delivery Note <span className="op-label__opt">optional</span>
+              </label>
+              <textarea className={`op-input op-textarea${errors.note ? ' op-input--err' : ''}`}
+                placeholder="e.g. Leave at the gate, call on arrival…"
+                rows={3} maxLength={1000} value={noteText}
+                onChange={e => { setNoteText(e.target.value); if (errors.note) setErrors(p => ({...p, note: null})) }} />
+              <p className={`op-chars${noteText.length > 900 ? ' op-chars--warn' : ''}`}>{noteText.length} / 1000</p>
+              {errors.note && <p className="op-err">{errors.note}</p>}
+            </div>
+
+            <div className="op-footer">
+              <div className="op-footer__summary">
+                <div className="op-footer__total-label">Order Total</div>
+                <div className="op-footer__total-val">{fmt(total)}</div>
+              </div>
+              <div className="op-footer__actions">
+                <div className="op-footer__rows">
+                  <div className="op-footer__row">
+                    <span>{qty} gal × {fmt(station.pricePerGallon)}</span>
+                    <span>{fmt(subtotal)}</span>
+                  </div>
+                  {station.deliveryFee > 0 && (
+                    <div className="op-footer__row">
+                      <span>Delivery fee</span>
+                      <span>{fmt(station.deliveryFee)}</span>
+                    </div>
+                  )}
                 </div>
-                {errors.qty ? <p className="field-error">{errors.qty}</p> : <p className="qty-hint">Minimum 1 gallon per order</p>}
+                <button className="op-btn-primary" onClick={handleReview}>Next →</button>
               </div>
-
-              {/* Address */}
-              <div className="form-section">
-                <label className="form-label">Delivery Address</label>
-                <input
-                  className={`text-inp ${errors.address ? 'inp-error' : ''}`}
-                  value={address}
-                  onChange={e => { setAddress(e.target.value); if (errors.address) setErrors(p => ({...p, address: null})) }}
-                />
-                {errors.address && <p className="field-error">{errors.address}</p>}
-              </div>
-
-              {/* ── ORDER NOTE input ──────────────────────────────────────
-                  Customer types a delivery note here.
-                  After order is confirmed, this is sent to:
-                  POST /api/orders/{id}/notes/ → saved in OrderNote table.
-                  It will appear in TrackPage under "Your Notes".
-              ─────────────────────────────────────────────────────────── */}
-              <div className="form-section">
-                <label className="form-label">
-                  Note for delivery <span className="label-optional">(optional)</span>
-                </label>
-                <textarea
-                  className={`text-inp note-inp ${errors.note ? 'inp-error' : ''}`}
-                  placeholder="e.g. Leave at the gate, call on arrival, no ice please…"
-                  rows={3}
-                  maxLength={1000}
-                  value={noteText}
-                  onChange={e => { setNoteText(e.target.value); if (errors.note) setErrors(p => ({...p, note: null})) }}
-                />
-                <p className={`note-char-count ${noteText.length > 900 ? 'warn' : ''}`}>
-                  {noteText.length} / 1000
-                </p>
-                {errors.note && <p className="field-error">{errors.note}</p>}
-              </div>
-              {/* ── END ORDER NOTE input ── */}
-
             </div>
+          </>}
 
-            <div className="order-summary-panel">
-              <div className="price-breakdown">
-                <div className="pb-title">Order Summary</div>
-                <div className="price-row"><span>Water type</span><span>{type}</span></div>
-                <div className="price-row"><span>Per gallon</span><span>{fmt(station.pricePerGallon)}</span></div>
-                <div className="price-row"><span>Quantity</span><span>{qty} gal</span></div>
-                <div className="price-row"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-                <div className="price-row"><span>Delivery fee</span><span>{fmt(station.deliveryFee)}</span></div>
-                <div className="price-row total"><span>Total</span><span>{fmt(total)}</span></div>
+          {/* ── Step 2: Review ── */}
+          {step === 2 && <>
+            <div className="op-content__section-title">Review Your Order</div>
+
+            <div className="op-review-rows">
+              <div className="op-review-group">
+                <div className="op-review-group__title">Order Info</div>
+                {[
+                  ['Station',    station.name],
+                  ['Water Type', type],
+                  ['Quantity',   `${qty} gallon${qty > 1 ? 's' : ''}`],
+                  ['Total',      fmt(total)],
+                  ...(station.eta && station.eta !== '—' ? [['ETA', station.eta]] : []),
+                ].map(([label, val]) => (
+                  <div key={label} className="op-review-row">
+                    <span>{label}</span><strong>{val}</strong>
+                  </div>
+                ))}
               </div>
-              <button className="btn-primary full" onClick={handleReview}>Review Order →</button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 2: Review ── */}
-        {step === 2 && (
-          <div className="order-review">
-            <h3 className="review-title">Review your order</h3>
-            <div className="confirm-block">
-              <div className="confirm-row"><span>Station</span><strong>{station.name}</strong></div>
-              <div className="confirm-row"><span>Water Type</span><strong>{type}</strong></div>
-              <div className="confirm-row"><span>Quantity</span><strong>{qty} gallon{qty > 1 ? 's' : ''}</strong></div>
-              <div className="confirm-row"><span>Deliver to</span><strong>{address}</strong></div>
-              <div className="confirm-row"><span>ETA</span><strong>{station.eta}</strong></div>
-              {/* ORDER NOTE preview — shown only if customer typed something */}
-              {noteText.trim() && (
-                <div className="confirm-row note-preview-row">
-                  <span>📝 Your note</span>
-                  <strong className="note-preview-text">"{noteText}"</strong>
+              <div className="op-review-group">
+                <div className="op-review-group__title">Delivery</div>
+                <div className="op-review-row">
+                  <span>Address</span><strong>{address}</strong>
                 </div>
-              )}
-              <div className="confirm-row highlight"><span>Total</span><strong>{fmt(total)}</strong></div>
+                {noteText.trim() && (
+                  <div className="op-review-row op-review-row--note">
+                    <span>📝 Note</span><strong>"{noteText}"</strong>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="modal-btns">
-              <button className="btn-ghost" onClick={() => setStep(1)}>← Edit</button>
-              <button className="btn-primary" onClick={handleConfirm} disabled={loading}>
-                {loading ? 'Placing order…' : 'Confirm Order ✓'}
-              </button>
-            </div>
-          </div>
-        )}
 
-        {/* ── Step 3: Success ── */}
-        {step === 3 && (
-          <div className="success-screen">
-            <div className="success-ripple"><span>💧</span></div>
-            <h2>Order Placed!</h2>
-            <p>Your water is on its way from<br /><strong>{station.name}</strong></p>
-            <p>ETA: <strong>{station.eta}</strong></p>
-            {orderId && <p className="order-id-label">Order #{orderId}</p>}
-            {/* Show note confirmation on success screen */}
-            {noteText.trim() && (
-              <p className="success-note">📝 Note saved: <em>"{noteText}"</em></p>
-            )}
-            <div className="success-actions">
-              <button className="btn-primary" onClick={() => navigate('track', { orderId })}>📍 Track Order</button>
-              <button className="btn-ghost"   onClick={() => navigate('home')}>Back to Home</button>
+            <div className="op-footer">
+              <div className="op-footer__summary">
+                <div className="op-footer__total-label">Total</div>
+                <div className="op-footer__total-val">{fmt(total)}</div>
+              </div>
+              <div className="op-footer__actions">
+                <button className="op-btn-ghost"   onClick={() => setStep(1)}>← Edit</button>
+                <button className="op-btn-primary" onClick={handleConfirm} disabled={loading}>
+                  {loading ? 'Placing…' : 'Confirm Order ✓'}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          </>}
 
+        </div>
       </div>
     </div>
   )

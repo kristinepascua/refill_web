@@ -1,17 +1,6 @@
 // =============================================================
 // TrackPage.jsx
 // =============================================================
-// Shows the order tracking timeline + ORDER NOTES section.
-//
-// ORDER NOTES CRUD here:
-//   READ   — fetched from GET /api/orders/{id}/notes/ on load
-//   CREATE — customer adds a new note via the text input
-//   UPDATE — customer edits their own note inline
-//   DELETE — customer deletes their own note
-//
-// Notes typed in OrderPage / SchedulePage appear here automatically
-// because they are fetched fresh from the API on every load.
-// =============================================================
 
 import { useState, useEffect } from 'react'
 import { useOrders } from '../context/OrdersContext'
@@ -24,25 +13,67 @@ const STEPS = [
   { id: 'delivered',  icon: '✅', label: 'Delivered',        desc: 'Order successfully delivered' },
 ]
 const STEP_INDEX = { pending: 0, processing: 1, shipped: 2, delivered: 3 }
-
-// Orders can only be cancelled before they're shipped
 const CANCELLABLE_STATUSES = ['pending', 'processing']
 
 export default function TrackPage({ navigate, orderId, order: passedOrder }) {
   const { orders, refreshOrders } = useOrders()
-  const [order, setOrder]           = useState(passedOrder || null)
-  const [loading, setLoading]       = useState(false)
-  const [selectedId, setSelectedId] = useState(orderId || null)
+  const [order, setOrder]               = useState(passedOrder || null)
+  const [loading, setLoading]           = useState(false)
+  const [selectedId, setSelectedId]     = useState(orderId || null)
   const [confirmCancel, setConfirmCancel] = useState(false)
-  const [cancelling, setCancelling]       = useState(false)
-  const [cancelError, setCancelError]     = useState(null)
+  const [cancelling, setCancelling]     = useState(false)
+  const [cancelError, setCancelError]   = useState(null)
 
-  // Active orders from context
+  const [notes, setNotes]               = useState([])
+  const [notesLoading, setNotesLoading] = useState(false)
+  const [newNote, setNewNote]           = useState('')
+  const [noteError, setNoteError]       = useState('')
+  const [editingNote, setEditingNote]   = useState(null)
+  const [editError, setEditError]       = useState('')
+  const [savingNote, setSavingNote]     = useState(false)
+
+  const fetchNotes = (id) => {
+    setNotesLoading(true)
+    ordersAPI.notes.getAll(id)
+      .then(r => {
+        const data = r.data
+        setNotes(Array.isArray(data) ? data : (data.results ?? []))
+      })
+      .catch(() => setNotes([]))
+      .finally(() => setNotesLoading(false))
+  }
+
+  const handleAddNote = async () => {
+    if (!newNote.trim()) return
+    if (newNote.length > 1000) { setNoteError('Note cannot exceed 1000 characters.'); return }
+    setSavingNote(true); setNoteError('')
+    try {
+      await ordersAPI.notes.create(order.id, { content: newNote.trim(), note_type: 'customer' })
+      setNewNote(''); fetchNotes(order.id)
+    } catch { setNoteError('Failed to save note. Please try again.') }
+    finally { setSavingNote(false) }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingNote.content.trim()) { setEditError('Note cannot be empty.'); return }
+    if (editingNote.content.length > 1000) { setEditError('Note cannot exceed 1000 characters.'); return }
+    setSavingNote(true); setEditError('')
+    try {
+      await ordersAPI.notes.update(order.id, editingNote.id, { content: editingNote.content.trim() })
+      setEditingNote(null); fetchNotes(order.id)
+    } catch { setEditError('Failed to update note. Please try again.') }
+    finally { setSavingNote(false) }
+  }
+
+  const handleDeleteNote = async (noteId) => {
+    try { await ordersAPI.notes.delete(order.id, noteId); fetchNotes(order.id) }
+    catch { /* silently ignore */ }
+  }
+
   const activeOrders = orders.filter(o =>
     ['pending', 'processing', 'shipped'].includes(o.status?.toLowerCase())
   )
 
-  // ── Fetch order details ───────────────────────────────────────
   useEffect(() => {
     if (selectedId) {
       setLoading(true)
@@ -55,36 +86,36 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
         .finally(() => setLoading(false))
     } else if (activeOrders.length > 0 && !order) {
       const first = activeOrders[0]
-      setOrder(first)
-      setSelectedId(first.id)
-      fetchNotes(first.id)
+      setOrder(first); setSelectedId(first.id); fetchNotes(first.id)
     }
   }, [selectedId])
 
   const handleCancelOrder = async () => {
-    setCancelling(true)
-    setCancelError(null)
+    setCancelling(true); setCancelError(null)
     try {
       await ordersAPI.updateStatus(order.id, 'cancelled')
       setOrder(prev => ({ ...prev, status: 'cancelled' }))
       setConfirmCancel(false)
-      // Refresh orders list in context if available
       if (typeof refreshOrders === 'function') refreshOrders()
-    } catch (err) {
-      setCancelError('Failed to cancel order. Please try again.')
-    } finally {
-      setCancelling(false)
-    }
+    } catch { setCancelError('Failed to cancel order. Please try again.') }
+    finally { setCancelling(false) }
   }
 
-  const currentStep  = STEP_INDEX[order?.status?.toLowerCase()] ?? 0
-  const isCancelled  = order?.status?.toLowerCase() === 'cancelled'
+  const currentStep   = STEP_INDEX[order?.status?.toLowerCase()] ?? 0
+  const isCancelled   = order?.status?.toLowerCase() === 'cancelled'
   const isCancellable = CANCELLABLE_STATUSES.includes(order?.status?.toLowerCase())
+
+  // ✅ total_price is computed server-side by Django's compute_total() from OrderItems
+  const displayTotal = order?.total_price ?? 0
+
+  // ✅ qty comes from summing the items array (Django doesn't store qty on the order itself)
+  const displayQty = order?.items?.length > 0
+    ? order.items.reduce((sum, item) => sum + (item.quantity ?? 0), 0)
+    : (order?.qty ?? '—')
 
   return (
     <div className="track-page">
 
-      {/* Order selector */}
       {activeOrders.length > 1 && (
         <div className="track-selector">
           <label className="form-label">Select Order to Track</label>
@@ -116,15 +147,17 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
           {/* Order info card */}
           <div className="track-info-card">
             <div className="track-order-id">Order #{order.id}</div>
-            <div className="track-order-detail">{order.station || order.notes || order.shipping_address || '—'}</div>
+            <div className="track-order-detail">
+              {order.station || order.notes || order.shipping_address || '—'}
+            </div>
             <div className="track-order-meta">
               <span>📅 {order.date || order.created_at?.slice(0, 10) || '—'}</span>
-              <span>💧 {order.qty || order.quantity || '—'} gal</span>
-              <span>₱{order.total || order.total_price || 0}</span>
+              {/* ✅ qty summed from items; total from total_price */}
+              <span>💧 {displayQty !== '—' ? `${displayQty} gal` : '—'}</span>
+              <span>₱{Number(displayTotal).toLocaleString()}</span>
             </div>
           </div>
 
-          {/* Cancelled state */}
           {isCancelled ? (
             <div className="track-cancelled">
               <span>❌</span>
@@ -133,7 +166,6 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
             </div>
           ) : (
             <>
-              {/* Progress bar */}
               <div className="track-progress-wrap">
                 <div className="track-progress-bar">
                   <div className="track-progress-fill"
@@ -141,7 +173,6 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
                 </div>
               </div>
 
-              {/* Steps timeline */}
               <div className="track-steps">
                 {STEPS.map((s, i) => {
                   const done    = i < currentStep
@@ -181,14 +212,11 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
                 </div>
               )}
 
-              {/* Cancel order section — only shown for pending/processing */}
               {isCancellable && (
                 <div className="track-cancel-wrap">
                   {!confirmCancel ? (
-                    <button
-                      className="btn-cancel-order"
-                      onClick={() => { setConfirmCancel(true); setCancelError(null) }}
-                    >
+                    <button className="btn-cancel-order"
+                      onClick={() => { setConfirmCancel(true); setCancelError(null) }}>
                       Cancel Order
                     </button>
                   ) : (
@@ -196,18 +224,12 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
                       <p>Are you sure you want to cancel this order?</p>
                       {cancelError && <p className="cancel-error">{cancelError}</p>}
                       <div className="cancel-confirm-actions">
-                        <button
-                          className="btn-cancel-confirm"
-                          onClick={handleCancelOrder}
-                          disabled={cancelling}
-                        >
+                        <button className="btn-cancel-confirm" onClick={handleCancelOrder} disabled={cancelling}>
                           {cancelling ? 'Cancelling…' : 'Yes, Cancel'}
                         </button>
-                        <button
-                          className="btn-cancel-dismiss"
+                        <button className="btn-cancel-dismiss"
                           onClick={() => { setConfirmCancel(false); setCancelError(null) }}
-                          disabled={cancelling}
-                        >
+                          disabled={cancelling}>
                           Keep Order
                         </button>
                       </div>
@@ -218,11 +240,7 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
             </>
           )}
 
-          {/* ════════════════════════════════════════════════════
-              ORDER NOTES SECTION
-              — Notes typed in OrderPage/SchedulePage appear here.
-              — Customer can also add, edit, or delete notes here.
-          ════════════════════════════════════════════════════ */}
+          {/* ORDER NOTES */}
           <div className="notes-section">
             <div className="notes-header">
               <span className="notes-title">📝 Your Notes</span>
@@ -231,7 +249,6 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
               )}
             </div>
 
-            {/* CRUD: READ — list of existing notes */}
             {notesLoading ? (
               <p className="notes-loading">Loading notes…</p>
             ) : notes.length === 0 ? (
@@ -240,14 +257,11 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
               <div className="notes-list">
                 {notes.map(note => (
                   <div key={note.id} className="note-item">
-                    {/* CRUD: UPDATE — inline edit mode */}
                     {editingNote?.id === note.id ? (
                       <div className="note-edit-mode">
                         <textarea
                           className={`text-inp note-inp ${editError ? 'inp-error' : ''}`}
-                          rows={3}
-                          maxLength={1000}
-                          value={editingNote.content}
+                          rows={3} maxLength={1000} value={editingNote.content}
                           onChange={e => {
                             setEditingNote(prev => ({ ...prev, content: e.target.value }))
                             if (editError) setEditError('')
@@ -258,16 +272,14 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
                         </p>
                         {editError && <p className="field-error">{editError}</p>}
                         <div className="note-edit-btns">
-                          <button className="btn-ghost note-btn" onClick={() => { setEditingNote(null); setEditError('') }}>
-                            Cancel
-                          </button>
+                          <button className="btn-ghost note-btn"
+                            onClick={() => { setEditingNote(null); setEditError('') }}>Cancel</button>
                           <button className="btn-primary note-btn" onClick={handleSaveEdit} disabled={savingNote}>
                             {savingNote ? 'Saving…' : 'Save'}
                           </button>
                         </div>
                       </div>
                     ) : (
-                      /* Normal read view */
                       <div className="note-read-mode">
                         <p className="note-content">"{note.content}"</p>
                         <div className="note-meta">
@@ -277,12 +289,10 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
                               : '—'}
                           </span>
                           <div className="note-actions">
-                            {/* CRUD: UPDATE — enter edit mode */}
                             <button className="note-action-btn edit-btn"
                               onClick={() => { setEditingNote({ id: note.id, content: note.content }); setEditError('') }}>
                               ✏️ Edit
                             </button>
-                            {/* CRUD: DELETE — remove this note */}
                             <button className="note-action-btn delete-btn"
                               onClick={() => handleDeleteNote(note.id)}>
                               🗑 Delete
@@ -296,15 +306,12 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
               </div>
             )}
 
-            {/* CRUD: CREATE — add a new note */}
             <div className="note-add-form">
               <label className="form-label">Add a note</label>
               <textarea
                 className={`text-inp note-inp ${noteError ? 'inp-error' : ''}`}
                 placeholder="e.g. Leave at the gate, call before arriving…"
-                rows={2}
-                maxLength={1000}
-                value={newNote}
+                rows={2} maxLength={1000} value={newNote}
                 onChange={e => { setNewNote(e.target.value); if (noteError) setNoteError('') }}
               />
               <div className="note-add-footer">
@@ -320,7 +327,6 @@ export default function TrackPage({ navigate, orderId, order: passedOrder }) {
               </div>
             </div>
           </div>
-          {/* ════════════════ END ORDER NOTES SECTION ════════════ */}
 
         </div>
       )}

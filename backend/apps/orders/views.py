@@ -43,10 +43,10 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Return orders for the current user, excluding hidden ones"""
         user = self.request.user
-        qs   = Order.objects.all() if user.is_staff else Order.objects.filter(user=user)
         if user.is_staff:
-            return Order.objects.filter(is_hidden_by_user=False)
-        return Order.objects.filter(user=user, is_hidden_by_user=False)
+            qs = Order.objects.filter(is_hidden_by_user=False)
+        else:
+            qs = Order.objects.filter(user=user, is_hidden_by_user=False)
 
         # Optional filter: GET /api/orders/?status=pending
         status_filter = self.request.query_params.get('status')
@@ -287,19 +287,6 @@ class OrderNoteViewSet(viewsets.ModelViewSet):
 
         note.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-        order = serializer.save(user=self.request.user)
-
-        # Create order items if provided
-        items_data = request.data.get('items', [])
-        for item in items_data:
-            OrderItem.objects.create(
-                order=order,
-                product_id=item.get('product_id'),
-                quantity=item.get('quantity', 1),
-                price=item.get('price', 0)
-            )
-
-        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='hide')
     def hide(self, request, pk=None):
