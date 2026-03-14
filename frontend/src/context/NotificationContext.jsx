@@ -7,13 +7,20 @@ export function NotificationsProvider({ children }) {
   const [notifications, setNotifications] = useState([])
   const [loading,       setLoading]       = useState(false)
 
+  const isLoggedIn = () => !!localStorage.getItem('authToken')
+
   const fetchNotifications = useCallback(async () => {
+    if (!isLoggedIn()) return   // stop if logged out
     setLoading(true)
     try {
       const r = await apiClient.get('/notifications/')
       const data = Array.isArray(r.data) ? r.data : r.data?.results || []
       setNotifications(data)
     } catch (err) {
+      if (err.response?.status === 401) {
+        setNotifications([])    // clear stale data on auth failure
+        return
+      }
       console.error('Notifications fetch failed:', err.response?.status, err.response?.data)
     } finally {
       setLoading(false)
@@ -22,7 +29,10 @@ export function NotificationsProvider({ children }) {
 
   useEffect(() => {
     fetchNotifications()
-    const interval = setInterval(fetchNotifications, 30_000)
+    const interval = setInterval(() => {
+      if (!isLoggedIn()) return  // skip polling if logged out
+      fetchNotifications()
+    }, 30_000)
     return () => clearInterval(interval)
   }, [fetchNotifications])
 
@@ -39,7 +49,7 @@ export function NotificationsProvider({ children }) {
 
   const markAllRead = async () => {
     try {
-      await apiClient.post('/notifications/mark_all_read/')  // ✅ fixed
+      await apiClient.post('/notifications/mark_all_read/')
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
     } catch (err) {
       console.error('Mark all read failed:', err.response?.status, err.response?.data)
