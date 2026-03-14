@@ -13,6 +13,7 @@ export const ordersAPI = {
     return apiClient.post('/orders/', data)
   },
 
+  // Update order
   update: (id, data) => {
     return apiClient.patch(`/orders/${id}/`, data)
   },
@@ -25,15 +26,18 @@ export const ordersAPI = {
     return apiClient.patch(`/orders/${id}/`, { status })
   },
 
+  // Hide order
   hide: (id) => {
     return apiClient.post(`/orders/${id}/hide/`)
   },
 
+  // Items sub-resource
   items: {
     create: (orderId, data) =>
       apiClient.post(`/orders/${orderId}/items/`, data),
   },
 
+  // Notes sub-resource
   notes: {
     getAll: (orderId) =>
       apiClient.get(`/orders/${orderId}/notes/`),
@@ -46,5 +50,5 @@ export const ordersAPI = {
 
     delete: (orderId, noteId) =>
       apiClient.delete(`/orders/${orderId}/notes/${noteId}/`),
-  }
+  },
 }
