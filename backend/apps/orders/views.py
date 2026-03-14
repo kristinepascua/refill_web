@@ -20,8 +20,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Order, OrderItem, OrderNote
-from .serializers import OrderSerializer, OrderItemSerializer, OrderNoteSerializer
+from .models import Order, OrderItem, OrderNote, Notification
+from .serializers import OrderSerializer, OrderItemSerializer, OrderNoteSerializer, NotificationSerializer
 
 
 # ─────────────────────────────────────────────────────────────
@@ -300,3 +300,35 @@ class OrderNoteViewSet(viewsets.ModelViewSet):
         order.is_hidden_by_user = True
         order.save()
         return Response({'detail': 'Order hidden.'}, status=status.HTTP_200_OK)
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Notifications for the currently logged-in user.
+ 
+    GET  /api/notifications/              list all (newest first)
+    GET  /api/notifications/{id}/         single notification
+    PATCH /api/notifications/{id}/        mark as read { is_read: true }
+    POST /api/notifications/mark_all_read/ mark all as read
+    """
+    serializer_class   = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+ 
+    # CRUD: READ — only this user's notifications
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+ 
+    # CRUD: UPDATE — allow patching is_read only
+    def partial_update(self, request, *args, **kwargs):
+        notif = self.get_object()
+        is_read = request.data.get('is_read')
+        if is_read is not None:
+            notif.is_read = bool(is_read)
+            notif.save(update_fields=['is_read'])
+        return Response(NotificationSerializer(notif).data)
+ 
+    # Custom action — mark all as read in one request
+    @action(detail=False, methods=['post'], url_path='mark_all_read')
+    def mark_all_read(self, request):
+        self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'status': 'all notifications marked as read'})
+ 

@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useOrders } from '../context/OrdersContext'
+import { useNotifications } from '../context/NotificationContext'
+import NotificationModal from '../modals/NotificationModal'
 
 const NAV = [
   { id: 'home',    icon: '🏠', label: 'Home' },
@@ -12,7 +15,14 @@ const NAV = [
 export default function AppShell({ page, navigate, children }) {
   const { user, logout } = useAuth()
   const { orders } = useOrders()
+  const { unreadCount, fetchNotifications } = useNotifications()
+  const [showNotifs, setShowNotifs] = useState(false)
   const initials = user?.username?.slice(0, 2).toUpperCase() || 'U'
+
+  const handleBell = () => {
+    fetchNotifications()   // refresh on open
+    setShowNotifs(v => !v)
+  }
 
   const handleLogout = async () => {
     await logout()
@@ -73,7 +83,20 @@ export default function AppShell({ page, navigate, children }) {
         </div>
         <div className="header-right">
           <button className="logout-btn" onClick={handleLogout}>Sign Out</button>
-          <button className="notif-btn">🔔</button>
+          <div className="notif-btn-wrap">
+            <button className="notif-btn" onClick={handleBell}>
+              🔔
+              {unreadCount > 0 && (
+                <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+              )}
+            </button>
+            {showNotifs && (
+              <NotificationModal
+                onClose={() => setShowNotifs(false)}
+                navigate={navigate}
+              />
+            )}
+          </div>
         </div>
       </header>
 

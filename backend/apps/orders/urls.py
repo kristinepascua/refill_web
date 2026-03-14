@@ -13,11 +13,12 @@
 
 from django.urls import path, include
 from rest_framework_nested import routers   # pip install drf-nested-routers
-from .views import OrderViewSet, OrderItemViewSet, OrderNoteViewSet
+from .views import OrderViewSet, OrderItemViewSet, OrderNoteViewSet, NotificationViewSet
 
 # ── Root router — registers Order (TABLE 1) ──────────────────
 router = routers.DefaultRouter()
 router.register(r'', OrderViewSet, basename='order')
+router.register(r'notifications', NotificationViewSet, basename='notification')  # ← NEW
 
 # ── Nested router — registers OrderItem (TABLE 2) and OrderNote (TABLE 3)
 #    under /api/orders/{order_pk}/items/ and /api/orders/{order_pk}/notes/

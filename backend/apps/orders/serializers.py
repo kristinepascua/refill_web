@@ -12,7 +12,7 @@
 # =============================================================
 
 from rest_framework import serializers
-from .models import Order, OrderItem, OrderNote
+from .models import Order, OrderItem, OrderNote, Notification
 from apps.products.serializers import ProductSerializer
 
 
@@ -163,3 +163,11 @@ class OrderSerializer(serializers.ModelSerializer):
                     "This order is closed and can no longer be edited."
                 )
         return data
+
+class NotificationSerializer(serializers.ModelSerializer):
+    order_id = serializers.IntegerField(source='order.id', read_only=True, allow_null=True)
+ 
+    class Meta:
+        model  = Notification
+        fields = ['id', 'order_id', 'notif_type', 'message', 'is_read', 'created_at']
+        read_only_fields = ['id', 'order_id', 'notif_type', 'message', 'created_at']

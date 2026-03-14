@@ -1,0 +1,159 @@
+/* =============================================================
+   APPEND TO: src/App.css
+   Notification bell + dropdown panel
+   ============================================================= */
+
+/* ── Bell button wrapper (position anchor for dropdown) ── */
+.notif-btn-wrap {
+  position: relative;
+}
+
+/* ── Bell button ── */
+.notif-btn {
+  position: relative;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 50%;
+  width: 38px; height: 38px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.notif-btn:hover { background: #e2e8f0; }
+
+/* ── Unread count badge on the bell ── */
+.notif-badge {
+  position: absolute;
+  top: -4px; right: -4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: .65rem;
+  font-weight: 700;
+  min-width: 18px; height: 18px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  pointer-events: none;
+}
+
+/* ── Notification dropdown panel ── */
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 340px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.16);
+  border: 1px solid #e2e8f0;
+  z-index: 500;
+  overflow: hidden;
+  animation: slideDown .15s ease;
+}
+@keyframes slideDown {
+  from { opacity:0; transform:translateY(-8px) }
+  to   { opacity:1; transform:translateY(0) }
+}
+
+/* ── Panel header ── */
+.notif-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.notif-title {
+  font-size: .95rem; font-weight: 700; color: #0f172a;
+}
+.notif-mark-all {
+  background: none; border: none;
+  font-size: .78rem; color: #133E87;
+  cursor: pointer; font-weight: 600;
+  padding: 0;
+}
+.notif-mark-all:hover { text-decoration: underline; }
+
+/* ── Scrollable list ── */
+.notif-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+/* ── Empty state ── */
+.notif-empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 32px 16px;
+  gap: 4px;
+  color: #94a3b8;
+  font-size: .85rem;
+  text-align: center;
+}
+.notif-empty span { font-size: 2rem; margin-bottom: 8px; }
+.notif-empty-sub  { font-size: .75rem; color: #cbd5e1; }
+
+/* ── Each notification row ── */
+.notif-item {
+  display: flex; align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  background: none; border: none;
+  border-bottom: 1px solid #f8fafc;
+  cursor: pointer; text-align: left;
+  position: relative;
+  transition: background .1s;
+}
+.notif-item:hover   { background: #f8fafc; }
+.notif-item.unread  { background: #eff6ff; }
+.notif-item.unread:hover { background: #dbeafe; }
+.notif-item:last-child { border-bottom: none; }
+
+/* ── Blue dot for unread ── */
+.notif-dot {
+  position: absolute;
+  top: 50%; left: 5px;
+  transform: translateY(-50%);
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #133E87;
+  flex-shrink: 0;
+}
+
+/* ── Status icon circle ── */
+.notif-icon-wrap {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+/* ── Text block ── */
+.notif-text-block {
+  flex: 1; display: flex; flex-direction: column; gap: 2px;
+}
+.notif-message {
+  margin: 0;
+  font-size: .83rem;
+  color: #0f172a;
+  line-height: 1.4;
+  font-weight: 500;
+}
+.notif-time {
+  font-size: .73rem;
+  color: #94a3b8;
+}
+
+/* ── Footer ── */
+.notif-footer {
+  padding: 10px 14px;
+  border-top: 1px solid #f1f5f9;
+  text-align: center;
+}
+.notif-view-all {
+  background: none; border: none;
+  font-size: .82rem; color: #133E87;
+  cursor: pointer; font-weight: 600;
+}
+.notif-view-all:hover { text-decoration: underline; }

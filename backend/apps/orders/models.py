@@ -123,3 +123,40 @@ class OrderNote(models.Model):
     def __str__(self):
         author_name = self.author.username if self.author else 'Unknown'
         return f"Note on Order #{self.order_id} by {author_name}"
+
+
+# =============================================================
+# APPEND TO: apps/orders/models.py
+# =============================================================
+# Paste the Notification class after your existing OrderNote model.
+# No changes needed to Order, OrderItem, or OrderNote.
+# =============================================================
+
+
+class Notification(models.Model):
+    """
+    In-app notification for a user.
+    Created automatically by signals.py when an order status changes.
+    Also created when an order is placed (order_placed).
+    """
+
+    NOTIF_TYPES = [
+        ('order_placed',     'Order Placed'),
+        ('order_processing', 'Order Processing'),
+        ('order_shipped',    'Order Shipped'),
+        ('order_delivered',  'Order Delivered'),
+        ('order_cancelled',  'Order Cancelled'),
+    ]
+
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    order      = models.ForeignKey('Order', on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
+    notif_type = models.CharField(max_length=30, choices=NOTIF_TYPES)
+    message    = models.TextField()
+    is_read    = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} — {self.notif_type} ({'read' if self.is_read else 'unread'})"
