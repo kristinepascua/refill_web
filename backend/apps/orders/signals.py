@@ -1,7 +1,7 @@
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_save, post_migrate
 from django.dispatch import receiver
 from .models import Order, Notification
- 
+
 STATUS_MESSAGES = {
     'pending':    ('order_placed',     '📋 Your order #{id} has been placed and is waiting to be confirmed.'),
     'processing': ('order_processing', '⚙️ Your order #{id} is being prepared at the station.'),
@@ -9,9 +9,22 @@ STATUS_MESSAGES = {
     'delivered':  ('order_delivered',  '✅ Your order #{id} has been delivered. Enjoy your water!'),
     'cancelled':  ('order_cancelled',  '❌ Your order #{id} has been cancelled.'),
 }
- 
+
 _previous_status = {}
- 
+
+@receiver(post_migrate)
+def fix_empty_notification_messages(sender, **kwargs):
+    """Auto-fix blank notification messages after every migrate."""
+    try:
+        for notif in Notification.objects.filter(message=''):
+            config = STATUS_MESSAGES.get(notif.notif_type)
+            if config and notif.order:
+                _, template = config
+                notif.message = template.format(id=notif.order.id)
+                notif.save(update_fields=['message'])
+    except Exception:
+        pass  # table may not exist yet on first migrate
+
 @receiver(pre_save, sender=Order)
 def capture_previous_status(sender, instance, **kwargs):
     if instance.pk:
@@ -19,7 +32,7 @@ def capture_previous_status(sender, instance, **kwargs):
             _previous_status[instance.pk] = Order.objects.get(pk=instance.pk).status
         except Order.DoesNotExist:
             pass
- 
+
 @receiver(post_save, sender=Order)
 def create_order_notification(sender, instance, created, **kwargs):
     new_status = instance.status
@@ -45,4 +58,3 @@ def create_order_notification(sender, instance, created, **kwargs):
         notif_type=notif_type,
         message=msg_template.format(id=instance.id),
     )
- 

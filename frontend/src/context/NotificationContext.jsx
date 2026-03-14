@@ -13,8 +13,8 @@ export function NotificationsProvider({ children }) {
       const r = await apiClient.get('/notifications/')
       const data = Array.isArray(r.data) ? r.data : r.data?.results || []
       setNotifications(data)
-    } catch {
-
+    } catch (err) {
+      console.error('Notifications fetch failed:', err.response?.status, err.response?.data)
     } finally {
       setLoading(false)
     }
@@ -32,14 +32,18 @@ export function NotificationsProvider({ children }) {
       setNotifications(prev =>
         prev.map(n => n.id === id ? { ...n, is_read: true } : n)
       )
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('Mark read failed:', err.response?.status, err.response?.data)
+    }
   }
 
   const markAllRead = async () => {
     try {
-      await apiClient.post('/notifications/mark_all_read/')
+      await apiClient.post('/notifications/mark_all_read/')  // ✅ fixed
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('Mark all read failed:', err.response?.status, err.response?.data)
+    }
   }
 
   const unreadCount = notifications.filter(n => !n.is_read).length

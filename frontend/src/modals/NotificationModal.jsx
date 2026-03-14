@@ -71,6 +71,7 @@ export default function NotificationModal({ onClose, navigate }) {
         )}
 
         {notifications.map(notif => {
+          console.log('notif:', notif)
           const cfg = TYPE_CONFIG[notif.notif_type] || DEFAULT_CONFIG
           return (
             <button
