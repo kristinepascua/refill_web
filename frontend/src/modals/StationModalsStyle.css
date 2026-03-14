@@ -1,0 +1,147 @@
+/* =============================================================
+   APPEND THESE STYLES TO: src/App.css
+   Station Modal + Reviews
+   ============================================================= */
+
+/* ── Backdrop ── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  animation: fadeIn .15s ease;
+}
+@keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+/* ── Modal shell ── */
+.station-modal {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%; max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0,0,0,.25);
+  animation: slideUp .2s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(24px); opacity:0 }
+  to   { transform: translateY(0);    opacity:1 }
+}
+
+/* ── Header ── */
+.smodal-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 24px 24px 0;
+  position: sticky; top: 0;
+  background: #fff;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 16px;
+}
+.smodal-hero { display: flex; align-items: center; gap: 14px; }
+.smodal-emoji { font-size: 2.4rem; }
+.smodal-name  { margin: 0 0 6px; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+.smodal-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.smodal-dist { font-size: .82rem; color: #64748b; }
+.smodal-open-badge {
+  font-size: .75rem; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+}
+.smodal-open-badge.open   { background: #d1fae5; color: #059669; }
+.smodal-open-badge.closed { background: #fee2e2; color: #dc2626; }
+.modal-close-btn {
+  border: none; background: #f1f5f9; border-radius: 50%;
+  width: 32px; height: 32px; cursor: pointer; font-size: .9rem;
+  flex-shrink: 0; color: #64748b;
+  transition: background .15s;
+}
+.modal-close-btn:hover { background: #e2e8f0; }
+
+/* ── Body ── */
+.smodal-body { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+
+/* ── Rating summary ── */
+.smodal-rating-block {
+  display: flex; align-items: center; gap: 14px;
+  background: #fef9c3; border-radius: 12px; padding: 14px 18px;
+}
+.smodal-avg-score { font-size: 2.2rem; font-weight: 800; color: #d97706; }
+.smodal-review-count { font-size: .8rem; color: #92400e; margin-top: 2px; }
+
+/* ── Stars ── */
+.stars-row { display: flex; gap: 2px; }
+.star { font-size: 1.3rem; color: #d1d5db; transition: color .1s; }
+.star.filled { color: #f59e0b; }
+.star.star-interactive { cursor: pointer; }
+.star.star-interactive:hover { color: #fbbf24; transform: scale(1.15); }
+
+/* ── Info grid ── */
+.smodal-info-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.smodal-info-item {
+  background: #f8fafc; border-radius: 10px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.smodal-info-label { font-size: .75rem; color: #64748b; font-weight: 600; }
+.smodal-info-val   { font-size: .95rem; font-weight: 700; color: #0f172a; }
+.smodal-types { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+
+/* ── CTA buttons ── */
+.smodal-actions { display: flex; gap: 10px; }
+.smodal-order-btn    { flex: 1; }
+.smodal-schedule-btn { flex: 1; }
+
+/* ── Reviews section ── */
+.smodal-reviews-section { display: flex; flex-direction: column; gap: 14px; }
+.smodal-reviews-title {
+  font-size: 1rem; font-weight: 700; color: #0f172a;
+  margin: 0; padding-bottom: 10px;
+  border-bottom: 2px solid #f1f5f9;
+}
+.reviews-loading, .reviews-empty { color: #94a3b8; font-size: .85rem; text-align: center; padding: 12px 0; }
+.reviews-list { display: flex; flex-direction: column; gap: 12px; }
+
+.review-item {
+  background: #f8fafc; border-radius: 12px; padding: 14px;
+  border: 1px solid #e2e8f0;
+}
+.review-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 8px;
+}
+.review-author-block { display: flex; align-items: center; gap: 10px; }
+.review-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: #133E87; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; font-weight: 700; flex-shrink: 0;
+}
+.review-author { font-size: .88rem; font-weight: 600; color: #0f172a; }
+.review-date   { font-size: .75rem; color: #94a3b8; margin-top: 1px; }
+.review-comment {
+  font-size: .85rem; color: #475569;
+  margin: 6px 0 8px; font-style: italic;
+  line-height: 1.5;
+}
+.review-actions { display: flex; gap: 8px; }
+.review-edit-mode { display: flex; flex-direction: column; gap: 8px; }
+.note-edit-btns  { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── Add review form ── */
+.review-add-form {
+  background: #f0f6ff; border-radius: 12px;
+  padding: 16px; border: 1px dashed #608BC1;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.review-form-title { font-size: .9rem; font-weight: 700; color: #133E87; margin: 0; }
+
+/* ── sc-name as clickable link ── */
+.sc-name-link {
+  background: none; border: none; padding: 0; margin: 0;
+  font-size: inherit; font-weight: 700; color: #133E87;
+  cursor: pointer; text-align: left;
+  text-decoration: underline dotted;
+  transition: color .15s;
+}
+.sc-name-link:hover { color: #608BC1; }

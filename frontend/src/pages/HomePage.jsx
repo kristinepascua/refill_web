@@ -1,110 +1,214 @@
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useOrders } from '../context/OrdersContext'
+import { productsAPI } from '../api/products'
+import { FaShoppingCart, FaCalendarAlt, FaHistory, FaTint, FaStar, FaMapMarkerAlt } from 'react-icons/fa'
+import StationModal from '../modals/StationModals'
 
 const fmt = (n) => `₱${Number(n).toLocaleString()}`
 
-const STATUS_COLOR = {
-  delivered:  '#10b981', pending: '#f59e0b',
-  processing: '#3b82f6', shipped: '#8b5cf6', cancelled: '#ef4444',
-}
+/**
+ * Maps a Product from the API into the station shape
+ * that OrderPage, SchedulePage, and StationModal expect.
+ */
+const toStation = (product) => ({
+  id:             product.id,
+  name:           product.name,
+  description:    product.description || '',
+  // category name becomes the water type e.g. "Purified" or "Alkaline"
+  waterTypes:     product.category ? [product.category] : [],
+  pricePerGallon: parseFloat(product.price ?? 0),
+  deliveryFee:    0,          // not in your model yet — set to 0 or add later
+  eta:            '—',        // not in your model yet
+  distance:       '—',        // not in your model yet
+  rating:         null,       // not in your model yet
+  stock:          product.stock ?? 0,
+  open:           product.is_active ?? true,
+})
 
 export default function HomePage({ navigate }) {
   const { user } = useAuth()
   const { orders } = useOrders()
 
-  const recentOrders  = orders.slice(0, 3)
-  const totalSpent    = orders.reduce((a, o) => a + parseFloat(o.total || o.total_price || 0), 0)
-  const totalGallons  = orders.reduce((a, o) => a + (o.qty || o.quantity || 0), 0)
-  const pendingOrders = orders.filter(o => ['pending','processing','shipped'].includes(o.status?.toLowerCase()))
+  const [stations, setStations]               = useState([])
+  const [loadingStations, setLoading]         = useState(true)
+  const [stationsError, setStationsError]     = useState(null)
+  const [selectedStation, setSelectedStation] = useState(null)
 
-  const initials = user?.username?.slice(0, 2).toUpperCase() || 'U'
+  // ── Fetch all active products and treat each one as a station ────────────
+  useEffect(() => {
+    const fetchStations = async () => {
+      setLoading(true)
+      setStationsError(null)
+      try {
+        const res  = await productsAPI.getAll({ is_active: true })
+        const data = res.data
+        const list = Array.isArray(data) ? data : (data.results ?? [])
+        setStations(list.map(toStation))
+      } catch (err) {
+        console.error('Failed to load stations:', err)
+        setStationsError('Could not load stations. Please try again.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchStations()
+  }, [])
+
+  const recentOrders = orders.slice(0, 3)
 
   return (
-    <div className="home-page">
-      {/* Hero greeting */}
-      <div className="home-hero">
-        <div className="home-hero-text">
-          <p className="home-greeting">Hello, {user?.username}! 👋</p>
-          <h2 className="home-headline">Need a refill today?</h2>
-          <p className="home-desc">Order fresh water delivered to your door in minutes.</p>
-          <button className="btn-primary" onClick={() => navigate('browse')}>🛒 Order Now</button>
-        </div>
-        <div className="home-hero-art">💧</div>
-      </div>
+    <>
+      <div className="dashboard">
+        <main className="main">
 
-      {/* Stats row */}
-      <div className="home-stats">
-        <div className="hstat"><div className="hstat-val">{orders.length}</div><div className="hstat-label">Total Orders</div></div>
-        <div className="hstat"><div className="hstat-val">{totalGallons}</div><div className="hstat-label">Gallons</div></div>
-        <div className="hstat"><div className="hstat-val">{fmt(totalSpent)}</div><div className="hstat-label">Total Spent</div></div>
-        <div className="hstat"><div className="hstat-val">{pendingOrders.length}</div><div className="hstat-label">Active</div></div>
-      </div>
-
-      {/* Quick actions */}
-      <div className="home-section">
-        <div className="home-section-title">Quick Actions</div>
-        <div className="quick-actions">
-          <button className="qa-btn" onClick={() => navigate('browse')}>
-            <span className="qa-icon">🛒</span><span>Refill Now</span>
-          </button>
-          <button className="qa-btn" onClick={() => navigate('schedule')}>
-            <span className="qa-icon">📅</span><span>Schedule</span>
-          </button>
-          <button className="qa-btn" onClick={() => navigate('history')}>
-            <span className="qa-icon">📋</span><span>History</span>
-          </button>
-          <button className="qa-btn" onClick={() => navigate('track')}>
-            <span className="qa-icon">📍</span><span>Track</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Active orders alert */}
-      {pendingOrders.length > 0 && (
-        <div className="active-orders-banner" onClick={() => navigate('track', { order: pendingOrders[0] })}>
-          <span>🚚</span>
-          <div>
-            <div className="aob-title">You have {pendingOrders.length} active order{pendingOrders.length > 1 ? 's' : ''}</div>
-            <div className="aob-sub">Tap to track your delivery</div>
+          {/* TOPBAR */}
+          <div className="topbar">
+            <h2>Hello, {user?.username} 👋</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <FaMapMarkerAlt /> Carmen, Cagayan de Oro
+            </div>
           </div>
-          <span className="chevron">›</span>
-        </div>
-      )}
 
-      {/* Recent orders */}
-      <div className="home-section">
-        <div className="home-section-header">
-          <div className="home-section-title">Recent Orders</div>
-          {orders.length > 0 && (
-            <button className="link-btn" onClick={() => navigate('history')}>View all →</button>
-          )}
-        </div>
-
-        {recentOrders.length === 0 ? (
-          <div className="home-empty">
-            <span>📋</span>
-            <p>No orders yet — place your first one!</p>
-            <button className="btn-primary" onClick={() => navigate('browse')}>Browse Stations</button>
+          {/* QUICK ACTIONS */}
+          <div className="quick-grid">
+            <div className="quick-card" onClick={() => navigate('browse')}>
+              <FaShoppingCart size={28} />
+              <p>Refill Now</p>
+            </div>
+            <div className="quick-card" onClick={() => navigate('schedule')}>
+              <FaCalendarAlt size={28} />
+              <p>Schedule</p>
+            </div>
+            <div className="quick-card" onClick={() => navigate('history')}>
+              <FaHistory size={28} />
+              <p>History</p>
+            </div>
           </div>
-        ) : (
-          <div className="recent-orders">
+
+          {/* NEARBY STATIONS */}
+          <div className="section">
+            <h3>Nearby Stations</h3>
+
+            {loadingStations && (
+              <p style={{ color: '#888', fontSize: '0.9rem' }}>Loading stations…</p>
+            )}
+
+            {!loadingStations && stationsError && (
+              <div className="op-error-banner">⚠️ {stationsError}</div>
+            )}
+
+            {!loadingStations && !stationsError && stations.length === 0 && (
+              <p style={{ color: '#888', fontSize: '0.9rem' }}>No stations available.</p>
+            )}
+
+            {!loadingStations && !stationsError && stations.length > 0 && (
+              <div className="station-grid">
+                {stations.map(station => (
+                  <div key={station.id} className="station-card">
+
+                    <div className="station-header">
+                      <div className="station-left">
+                        <div className="station-icon"><FaTint /></div>
+                        <div>
+                          <button
+                            className="sc-name sc-name-link"
+                            onClick={() => setSelectedStation(station)}
+                          >
+                            {station.name}
+                          </button>
+                          {station.distance !== '—' && (
+                            <p className="station-distance">
+                              <FaMapMarkerAlt /> {station.distance}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {station.rating && (
+                        <div className="station-rating">
+                          <FaStar /> {station.rating}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Water type tags from category */}
+                    {station.waterTypes.length > 0 && (
+                      <div className="station-tags">
+                        {station.waterTypes.map(t => <span key={t}>{t}</span>)}
+                      </div>
+                    )}
+
+                    <div className="station-info">
+                      <div>
+                        <p>PER GALLON</p>
+                        <h4>{fmt(station.pricePerGallon)}</h4>
+                      </div>
+                      <div>
+                        <p>STOCK</p>
+                        <h4>{station.stock} gal</h4>
+                      </div>
+                      {station.eta !== '—' && (
+                        <div>
+                          <p>ETA</p>
+                          <h4>{station.eta}</h4>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="station-actions">
+                      <button
+                        className="order-btn"
+                        onClick={() => setSelectedStation(station)}
+                      >
+                        <FaShoppingCart /> Order Now
+                      </button>
+                      <button
+                        className="calendar-btn"
+                        onClick={() => setSelectedStation(station)}
+                      >
+                        <FaCalendarAlt />
+                      </button>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* RECENT ORDERS */}
+          <div className="section">
+            <h3>Recent Orders</h3>
+
+            {recentOrders.length === 0 && (
+              <p style={{ color: '#888', fontSize: '0.9rem' }}>No recent orders yet.</p>
+            )}
+
             {recentOrders.map(o => (
-              <div key={o.id} className="ro-card">
-                <div className="ro-top">
-                  <div className="ro-station">{o.station || o.notes || o.shipping_address || '—'}</div>
-                  <span className="ro-status" style={{ background: STATUS_COLOR[o.status?.toLowerCase()] + '22', color: STATUS_COLOR[o.status?.toLowerCase()] }}>
-                    {o.status}
-                  </span>
+              <div key={o.id} className="order-card">
+                <div>
+                  <strong>{o.station || 'Water Station'}</strong>
+                  <p>{o.qty || 0} gal</p>
                 </div>
-                <div className="ro-meta">
-                  <span>{o.date || o.created_at?.slice(0,10) || '—'}</span>
-                  <span>{o.qty || o.quantity || 0} gal · {fmt(o.total || o.total_price || 0)}</span>
+                <div>
+                  <span>{o.status}</span>
+                  <p>{fmt(o.total || 0)}</p>
                 </div>
               </div>
             ))}
           </div>
-        )}
+
+        </main>
       </div>
-    </div>
+
+      {selectedStation && (
+        <StationModal
+          station={selectedStation}
+          onClose={() => setSelectedStation(null)}
+          onOrder={s    => { setSelectedStation(null); navigate('order',    { station: s }) }}
+          onSchedule={s => { setSelectedStation(null); navigate('schedule', { station: s }) }}
+        />
+      )}
+    </>
   )
 }

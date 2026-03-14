@@ -1,4 +1,6 @@
 from django.db import models
+from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class Category(models.Model):
@@ -31,3 +33,28 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class StationReview(models.Model):
+    """Star rating + optional comment left by a customer on a water station (Product)."""
+
+    station = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name='reviews'
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='station_reviews'
+    )
+    # Validated 1–5 at model level and again in serializer
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment    = models.TextField(blank=True)   # optional — max 500 chars enforced in serializer
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = [('station', 'author')]   # one review per user per station
+
+    def __str__(self):
+        return f"{self.author.username} → {self.station.name} ({self.rating}★)"

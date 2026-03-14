@@ -40,3 +40,25 @@ export const ordersAPI = {
     return apiClient.post(`/orders/${id}/hide/`)
   },
 }
+
+  // Items sub-resource — maps to /api/orders/{order_pk}/items/
+  items: {
+    create: (orderId, data) =>
+      apiClient.post(`/orders/${orderId}/items/`, data),
+  },
+
+  // Notes sub-resource — maps to /api/orders/{order_pk}/notes/
+  notes: {
+    getAll: (orderId) =>
+      apiClient.get(`/orders/${orderId}/notes/`),
+
+    create: (orderId, data) =>
+      apiClient.post(`/orders/${orderId}/notes/`, data),
+
+    update: (orderId, noteId, data) =>
+      apiClient.patch(`/orders/${orderId}/notes/${noteId}/`, data),
+
+    delete: (orderId, noteId) =>
+      apiClient.delete(`/orders/${orderId}/notes/${noteId}/`),
+  },
+}
