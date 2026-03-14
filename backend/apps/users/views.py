@@ -43,23 +43,31 @@ class UserProfileViewSet(viewsets.ModelViewSet):
             if user_updated:
                 user.save()
 
-            # --- ONE-TIME POINT LOGIC ---
-            if 'points' in request.data:
-                new_points_request = float(request.data.get('points', 0))
-                
-                # Logic: If they are rating the APP
-                if 'app_rating' in request.data and profile.app_rating == 0:
-                    # User hasn't rated before, allow adding 1.0 point
+            # --- RATING & POINT LOGIC ---
+            # 1. App Rating Logic
+            if 'app_rating' in request.data:
+                incoming_rating = int(request.data['app_rating'])
+                # Only add 1.0 point if they've never rated before
+                if profile.app_rating == 0 and incoming_rating > 0:
                     profile.points += 1.0
+                profile.app_rating = incoming_rating # Save the stars to DB
+                profile.save()
+
+            # 2. Station Rating Logic
+            if 'rated_station_id' in request.data:
+                station_id = int(request.data['rated_station_id'])
+                # Make sure the list exists
+                if profile.rated_stations is None:
+                    profile.rated_stations = []
                 
-                # Logic: If they are rating a STATION
-                # (Assumes you pass a flag or check against a list of rated stations)
-                # For a simple 'one-time' bonus for the first station:
-                elif 'station_rating' in request.data and profile.station_rating == 0:
-                    profile.points += 0.2
-                
-                # IMPORTANT: Remove 'points' from request.data so the serializer 
-                # doesn't overwrite the manual addition above
+                # If they haven't rated this specific station yet
+                if station_id not in profile.rated_stations:
+                    profile.rated_stations.append(station_id) # Remember it
+                    profile.points += 0.2                     # Award points
+                profile.save()
+
+            # Prevent frontend from manually overriding total points
+            if 'points' in request.data:
                 request.data.pop('points')
 
             serializer = UserProfileSerializer(profile, data=request.data, partial=True)
@@ -69,12 +77,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         # --- GET LOGIC (CALCULATE ORDER POINTS ON THE FLY) ---
-        # This ensures the 0.1 per order is always reflected when they load the page
         serializer = UserProfileSerializer(profile)
         data = serializer.data
         
         # Calculate extra points from orders dynamically
-        # This assumes you have an Order model linked to the user
         from apps.orders.models import Order 
         delivered_orders = Order.objects.filter(
             user=request.user, 
@@ -83,7 +89,6 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         
         order_points = 0
         for order in delivered_orders:
-            # 0.1 per order + 0.1 per gallon (if gallon info exists on Order model)
             gallons = getattr(order, 'gallons', 0)
             order_points += (float(gallons) * 0.1) + 0.1
             
@@ -102,7 +107,6 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['delete'], url_path='remove_address/(?P<address_id>[0-9]+)')
     def remove_address(self, request, address_id=None):
         try:
-            # Ensure the address belongs to the current user's profile
             address = UserAddress.objects.get(id=address_id, profile__user=request.user)
             address.delete()
             return Response({"success": "Address removed"}, status=status.HTTP_200_OK)
@@ -112,13 +116,9 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['patch'], url_path='set_default_address/(?P<address_id>[0-9]+)')
     def set_default_address(self, request, address_id=None):
         try:
-            # Ensure the address belongs to the current user
             address = UserAddress.objects.get(id=address_id, profile__user=request.user)
-            
-            # Set to true. Your models.py save() method will auto-change the others to false!
             address.is_default = True
             address.save() 
-            
             return Response({"success": "Default address updated"}, status=status.HTTP_200_OK)
         except UserAddress.DoesNotExist:
             return Response({"error": "Address not found"}, status=status.HTTP_404_NOT_FOUND)

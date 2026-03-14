@@ -19,16 +19,13 @@ const ProfilePage = ({ navigate }) => {
     const { user, logout } = useAuth();
     const { orders } = useOrders();
 
-    // --- STATE ---
     const [isEditing, setIsEditing] = useState(false);
     const [accountData, setAccountData] = useState({ name: '', phone: '', email: '', paymentMethod: 'COD', is_staff: false, points: 0 });
     
-    // Avatar Selection Logic
     const [tempIndex, setTempIndex] = useState(0); 
     const [savedAvatar, setSavedAvatar] = useState({ type: 'initials', seed: '' });
     const [isSavingAvatar, setIsSavingAvatar] = useState(false);
 
-    // Modals
     const [showPassModal, setShowPassModal] = useState(false);
     const [showHelpModal, setShowHelpModal] = useState(false);
     const [showAppReviewModal, setShowAppReviewModal] = useState(false);
@@ -38,66 +35,53 @@ const ProfilePage = ({ navigate }) => {
     const [addresses, setAddresses] = useState([]);
     const [newAddress, setNewAddress] = useState('');
     
-    // Ratings & Settings
-    const [ratings, setRatings] = useState({ app: 0, station: 0 });
+    const [ratings, setRatings] = useState({ app: 0 });
     const [stationRatingsMap, setStationRatingsMap] = useState({});
     const [settings, setSettings] = useState({ sms: true, email: true });
+
+    // Helper function to process backend data into state
+    const updateLocalState = (data) => {
+        setAccountData({
+            name: data.user_details?.username || '',
+            phone: data.phone || '',
+            email: data.user_details?.email || '',
+            paymentMethod: data.payment_method || 'COD',
+            is_staff: data.user_details?.is_staff || false,
+            points: data.points || 0
+        });
+        
+        setAddresses(data.addresses || []);
+        
+        const loadedType = data.avatar_type || 'initials';
+        const loadedSeed = data.avatar_seed || '';
+        setSavedAvatar({ type: loadedType, seed: loadedSeed });
+        
+        const startIdx = loadedType === 'initials' ? 0 : AVATAR_SEEDS.indexOf(loadedSeed);
+        setTempIndex(startIdx === -1 ? 0 : startIdx);
+
+        // Map backend ratings to frontend UI
+        setRatings({ app: data.app_rating || 0 });
+        
+        // Convert the backend array of rated station IDs into a map for the UI
+        const sMap = {};
+        if (data.rated_stations) {
+            data.rated_stations.forEach(id => { sMap[id] = 5; }); // Assume 5 stars for UI if rated
+        }
+        setStationRatingsMap(sMap);
+        
+        setSettings({ sms: data.sms_notifications ?? true, email: data.email_notifications ?? true });
+    };
 
     // 1. FETCH DATA ON LOAD
     useEffect(() => {
         const fetchProfileData = async () => {
             try {
                 const res = await apiClient.get('/users/profiles/me/');
-                const data = res.data;
-                
-                setAccountData({
-                    name: data.user_details?.username || '',
-                    phone: data.phone || '',
-                    email: data.user_details?.email || '',
-                    paymentMethod: data.payment_method || 'COD',
-                    is_staff: data.user_details?.is_staff || false,
-                    points: res.data.points || 0
-                });
-                
-                setAddresses(data.addresses || []);
-                
-                const loadedType = data.avatar_type || 'initials';
-                const loadedSeed = data.avatar_seed || '';
-                setSavedAvatar({ type: loadedType, seed: loadedSeed });
-                
-                // Sync the arrow selection with the currently saved avatar
-                const startIdx = loadedType === 'initials' ? 0 : AVATAR_SEEDS.indexOf(loadedSeed);
-                setTempIndex(startIdx === -1 ? 0 : startIdx);
-
-                setRatings({ app: data.app_rating || 0, station: data.station_rating || 0 });
-                setSettings({ sms: data.sms_notifications ?? true, email: data.email_notifications ?? true });
+                updateLocalState(res.data);
             } catch (err) { console.error("Fetch error:", err); }
         };
         fetchProfileData();
     }, []);
-
-    const syncPointsToBackend = async (pointsToAdd) => {
-    try {
-        const newTotal = accountData.points + pointsToAdd;
-        
-        // This is the part that actually "Saves" it to the database
-        await apiClient.patch('/users/profiles/me/', { 
-            points: newTotal 
-        });
-
-        // Update the screen so it looks immediate
-        setAccountData(prev => ({ ...prev, points: newTotal }));
-        
-    } catch (err) {
-        console.error("Database failed to save points:", err);
-        alert("Check your internet or backend—points didn't save.");
-    }
-};
-
-// Trigger it when a review is done
-const handleReviewApp = (rating) => {
-    syncPointsToBackend(1.0); // Adds 1 point and saves to DB
-};
 
     // --- AVATAR ARROW HANDLERS ---
     const handleNextAvatar = () => setTempIndex((prev) => (prev + 1) % AVATAR_SEEDS.length);
@@ -110,41 +94,15 @@ const handleReviewApp = (rating) => {
         const newSeed = selectedSeed === 'initials' ? '' : selectedSeed;
 
         try {
-            await apiClient.patch('/users/profiles/me/', {
-                avatar_type: newType,
-                avatar_seed: newSeed
-            });
+            await apiClient.patch('/users/profiles/me/', { avatar_type: newType, avatar_seed: newSeed });
             setSavedAvatar({ type: newType, seed: newSeed });
             alert("Avatar updated successfully!");
-        } catch (err) {
-            alert("Failed to save avatar.");
-        } finally {
-            setIsSavingAvatar(false);
-        }
+        } catch (err) { alert("Failed to save avatar."); } 
+        finally { setIsSavingAvatar(false); }
     };
 
-    // Check if the current arrow selection is different from the saved one
     const hasChanged = (AVATAR_SEEDS[tempIndex] !== savedAvatar.seed) && 
                      !(AVATAR_SEEDS[tempIndex] === 'initials' && savedAvatar.type === 'initials');
-
-    // --- CALCULATIONS & POINTS ---
-    const deliveredOrders = Array.isArray(orders) ? orders.filter(o => {
-        const status = o.status?.toLowerCase().trim();
-        return status === 'delivered' || status === 'completed';
-    }) : [];
-
-    const basePoints = deliveredOrders.reduce((acc, curr) => {
-        const gallonCount = parseFloat(curr.gallons) || 0; 
-        return acc + (gallonCount * 0.1) + 0.1;
-    }, 0);
-
-    <div className="pstat">
-    {/* We add the backend points + the calculated order points */}
-    <div className="pstat-val">
-        {((accountData.points || 0) + basePoints).toFixed(1)}
-    </div>
-    <div className="pstat-label">Points Earned</div>
-</div>
 
     // --- ACCOUNT HANDLERS ---
     const handleSaveAccount = async () => {
@@ -216,37 +174,32 @@ const handleReviewApp = (rating) => {
 
     // --- RATING LOGIC ---
     const handleSaveAppRating = async (ratingVal) => {
-    // Only give points if the app hasn't been rated before (rating is 0)
-    const isFirstTime = ratings.app === 0;
+        try { 
+            // 1. Send the rating to the backend
+            await apiClient.patch('/users/profiles/me/', { app_rating: ratingVal }); 
+            setShowAppReviewModal(false);
+            
+            // 2. Fetch fresh profile data to get the newly calculated points!
+            const res = await apiClient.get('/users/profiles/me/');
+            updateLocalState(res.data);
+            
+            if (ratings.app === 0) alert("You earned 1.0 points for your first app review!");
+            else alert("Rating updated!");
+        } catch (err) { console.error("Failed to save app rating."); }
+    };
 
-    setRatings({ ...ratings, app: ratingVal });
-    setShowAppReviewModal(false);
-
-    try { 
-        await apiClient.patch('/users/profiles/me/', { app_rating: ratingVal }); 
-        
-        if (isFirstTime) {
-            await syncPointsToBackend(1.0); 
-            alert("You earned 1.0 points for your first app review!");
-        }
-    } catch (err) { 
-        console.error("Failed to save app rating."); 
-    }
-};
-
-// --- STATION RATING LOGIC ---
-const handleSaveStationRating = async (stationId, ratingVal) => {
-    // Check if this specific station has been rated in this session
-    // Or if it was already rated when the page loaded
-    const isFirstTimeForThisStation = !stationRatingsMap[stationId] && !ratings.station; 
-    // Note: If your backend tracks individual station ratings, check that specific value here.
-
-    setStationRatingsMap(prev => ({ ...prev, [stationId]: ratingVal }));
-    
-    if (isFirstTimeForThisStation) {
-        await syncPointsToBackend(0.2); 
-    }
-};
+    const handleSaveStationRating = async (stationId, ratingVal) => {
+        try {
+            // 1. Send the specific station ID to the backend
+            await apiClient.patch('/users/profiles/me/', { rated_station_id: stationId, station_rating: ratingVal });
+            
+            // 2. Fetch fresh profile data
+            const res = await apiClient.get('/users/profiles/me/');
+            updateLocalState(res.data);
+            
+            if (!stationRatingsMap[stationId]) alert("You earned 0.2 points for reviewing this station!");
+        } catch (err) { console.error("Failed to save station rating."); }
+    };
 
     return (
         <div className="profile-layout">
@@ -291,17 +244,23 @@ const handleSaveStationRating = async (stationId, ratingVal) => {
 
                 <div className="profile-stats-card">
                     <div className="pstat">
-                        <div className="pstat-val">{orders.length}</div>
+                        <div className="pstat-val">{orders ? orders.length : 0}</div>
                         <div className="pstat-label">Total Orders</div>
                     </div>
                     <button className="sidebar-btn" onClick={() => navigate('history')}>📜 Order History</button>
                     
                     <div className="pstat">
+                        {/* Notice we NO LONGER calculate order points here. The backend does it! */}
                         <div className="pstat-val">{(accountData.points || 0).toFixed(1)}</div>
                         <div className="pstat-label">Points Earned</div>
                     </div>
                     <button className="sidebar-btn" onClick={() => setShowStationReviewModal(true)}>⭐ Review Stations</button>
-                    <button className="sidebar-btn" onClick={() => setShowAppReviewModal(true)}>📱 Review App</button>
+                    
+                    {/* Optional: Change button text if already rated */}
+                    <button className="sidebar-btn" onClick={() => setShowAppReviewModal(true)}>
+                        {ratings.app > 0 ? "✅ Update App Review" : "📱 Review App"}
+                    </button>
+                    
                     <button className="sidebar-btn" onClick={() => setShowHelpModal(true)}>❓ Help Centre</button>
                 </div>
             </div>
@@ -445,7 +404,6 @@ const handleSaveStationRating = async (stationId, ratingVal) => {
                         </div>
                     </div>
                 )}
-
             </div>
         </div>
     );

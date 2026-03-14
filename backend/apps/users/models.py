@@ -11,7 +11,11 @@ class UserProfile(models.Model):
     avatar_type = models.CharField(max_length=20, default='initials')
     sms_notifications = models.BooleanField(default=True)
     email_notifications = models.BooleanField(default=True)
+    
+    # Points & Ratings (The Memory Fix)
     points = models.FloatField(default=0.0)
+    app_rating = models.IntegerField(default=0)
+    rated_stations = models.JSONField(default=list, blank=True, null=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

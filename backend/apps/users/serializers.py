@@ -21,5 +21,5 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user_details', 'phone', 'payment_method', 
             'avatar_type', 'avatar_seed', 'points', 'sms_notifications', 
-            'email_notifications', 'addresses'
+            'email_notifications', 'addresses', 'app_rating', 'rated_stations'
         ]
