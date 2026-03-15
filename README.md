@@ -13,8 +13,11 @@
 Requirements
 
 Install the following:
+
 Python 3.8+
+
 Node.js 16+
+
 XAMPP (for MySQL)
 
 Make sure MySQL is running in XAMPP.
@@ -29,8 +32,11 @@ python -m venv venv
 Activate the virtual environment:
 
 venv\Scripts\activate
+
 Step 2 — Install Dependencies
+
 pip install djangorestframework django-cors-headers django-filter mysqlclient python-decouple Pillow
+
 Step 3 — Create MySQL Database
 
 Open MySQL from terminal:
