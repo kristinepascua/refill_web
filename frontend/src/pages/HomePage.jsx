@@ -5,6 +5,9 @@ import { productsAPI } from '../api/products'
 import { FaShoppingCart, FaCalendarAlt, FaHistory, FaTint, FaStar, FaMapMarkerAlt } from 'react-icons/fa'
 import StationModal from '../modals/StationModals'
 
+import StatusCard from '../components/StatusCard'
+import { FaBoxOpen, FaWallet, FaCheckCircle } from 'react-icons/fa'
+
 const fmt = (n) => `₱${Number(n).toLocaleString()}`
 const toStation = (product) => ({
   id:             product.id,
@@ -50,6 +53,13 @@ export default function HomePage({ navigate }) {
 
   const recentOrders = orders.slice(0, 3)
 
+  // COMPLIANCE (Lab 3 - Task 3): Data array to be rendered dynamically
+const stats = [
+  { title: 'Total Orders', value: orders.length, icon: FaBoxOpen, color: '#3b82f6' },
+  { title: 'Wallet', value: '₱500.00', icon: FaWallet, color: '#10b981' },
+  { title: 'Completed', value: orders.filter(o => o.status === 'delivered').length, icon: FaCheckCircle, color: '#8b5cf6' }
+];
+
   return (
     <>
       <div className="dashboard">
@@ -61,6 +71,26 @@ export default function HomePage({ navigate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <FaMapMarkerAlt /> Carmen, Cagayan de Oro
             </div>
+          </div>
+
+          {/* DASHBOARD SUMMARY STATS */}
+          <div className="status-container" style={{ 
+            display: 'flex', 
+            gap: '16px', 
+            flexWrap: 'wrap', 
+            marginBottom: '24px' 
+          }}>
+          
+          {/* COMPLIANCE (Lab 3 - Task 2): Rendering a list of components using .map() and Flexbox layout */}
+          {stats.map((stat, index) => (
+            <StatusCard 
+              key={index}
+              title={stat.title}
+              value={stat.value}
+              icon={stat.icon}
+              color={stat.color}
+            />
+          ))}
           </div>
 
           {/* QUICK ACTIONS */}

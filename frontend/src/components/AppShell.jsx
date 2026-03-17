@@ -12,10 +12,12 @@ const NAV = [
   { id: 'profile', icon: '👤', label: 'Profile' },
 ]
 
+// COMPLIANCE (Lab 3 - Task 1): Reusable UI component that manages the layout shell using props (page, navigate, children)
 export default function AppShell({ page, navigate, children }) {
   const { user, logout } = useAuth()
   const { orders } = useOrders()
   const { unreadCount, fetchNotifications } = useNotifications()
+  
   const [showNotifs, setShowNotifs] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const initials = user?.username?.slice(0, 2).toUpperCase() || 'U'
