@@ -1,3 +1,5 @@
+// COMPLIANCE (Lab 4 - Task 1): State management for real system data (Notifications/Auth)
+
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import apiClient from '../api/client'
 

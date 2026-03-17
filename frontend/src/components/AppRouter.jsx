@@ -1,3 +1,5 @@
+// COMPLIANCE (Lab 4 - Task 3): Client-side routing with distinct system screens (Login, Home, Track)
+
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import WelcomePage    from '../pages/WelcomePage'
@@ -14,6 +16,7 @@ import ProfilePage    from '../delivered/ProfilePage'
 import AppShell from '../components/AppShell'
 
 export default function AppRouter() {
+  // COMPLIANCE (Lab 4 - Task 1): Using Global State (user) to drive the main navigation logic
   const { user } = useAuth()
   const [page, setPage] = useState(user ? 'home' : 'welcome')
   const [pageProps, setPageProps] = useState({})
