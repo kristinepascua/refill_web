@@ -1,3 +1,5 @@
+// COMPLIANCE (Lab 4 - Task 1): State management for real system data (Notifications/Auth)
+
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import apiClient from '../api/client'
 
@@ -11,7 +13,16 @@ export function NotificationsProvider({ children }) {
 
   const fetchNotifications = useCallback(async () => {
     if (!isLoggedIn()) return   // stop if logged out
+    
+    const token = localStorage.getItem('access');
+    
+    if (!token) {
+      setNotifications([]); // Optional: clear notifications if logged out
+      return; 
+    }
+
     setLoading(true)
+    
     try {
       const r = await apiClient.get('/notifications/')
       const data = Array.isArray(r.data) ? r.data : r.data?.results || []

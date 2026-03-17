@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useOrders } from '../context/OrdersContext'
 import { ordersAPI } from '../api/orders'
+import { CANCELLABLE_STATUSES } from '../utils/constants';    
 
 const STEPS = [
   { id: 'pending',    icon: '📋', label: 'Order Placed',    desc: 'Your order has been received' },
@@ -9,7 +10,6 @@ const STEPS = [
   { id: 'delivered',  icon: '✅', label: 'Delivered',        desc: 'Order successfully delivered' },
 ]
 const STEP_INDEX = { pending: 0, processing: 1, shipped: 2, delivered: 3 }
-const CANCELLABLE_STATUSES = ['pending', 'processing']
 
 export default function TrackPage({ navigate, orderId, order: passedOrder }) {
   const { orders, refreshOrders } = useOrders()

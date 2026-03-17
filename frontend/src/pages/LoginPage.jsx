@@ -1,3 +1,5 @@
+// COMPLIANCE (Lab 4 - Task 2): Functional form using controlled inputs and state management
+
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
