@@ -123,6 +123,10 @@ DJOSER = {
     'USER_CREATE_PASSWORD_RETYPE': True,  
 }
 
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://refill-web-.*\.vercel\.app$",
+]
+
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',   
     'http://localhost:3000',    
@@ -132,7 +136,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://refill-web-murex.vercel.app',
+]
 
 CSRF_COOKIE_SECURE = False 
 CSRF_COOKIE_HTTPONLY = False 
