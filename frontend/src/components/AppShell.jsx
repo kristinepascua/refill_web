@@ -17,7 +17,7 @@ const ADMIN_NAV = { id: 'admin', icon: '🛡️', label: 'Admin Panel' }
 export default function AppShell({ page, navigate, children }) {
   const { user, logout } = useAuth()
   const { orders } = useOrders()
-  const NAV = user?.is_staff ? [ADMIN_NAV] : [...CUSTOMER_NAV, ADMIN_NAV]
+  const NAV = user?.is_staff ? [ADMIN_NAV] : CUSTOMER_NAV
   const { unreadCount, fetchNotifications } = useNotifications()
   const [showNotifs, setShowNotifs] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
