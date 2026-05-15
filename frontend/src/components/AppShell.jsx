@@ -4,7 +4,7 @@ import { useOrders } from '../context/OrdersContext'
 import { useNotifications } from '../context/NotificationContext'
 import NotificationModal from '../modals/NotificationModal'
 
-const NAV = [
+const CUSTOMER_NAV = [
   { id: 'home',    icon: '🏠', label: 'Home' },
   { id: 'browse',  icon: '🛒', label: 'Browse' },
   { id: 'history', icon: '📋', label: 'My Orders' },
@@ -12,14 +12,16 @@ const NAV = [
   { id: 'profile', icon: '👤', label: 'Profile' },
 ]
 
+const ADMIN_NAV = { id: 'admin', icon: '🛡️', label: 'Admin Panel' }
+
 export default function AppShell({ page, navigate, children }) {
   const { user, logout } = useAuth()
   const { orders } = useOrders()
+  const NAV = user?.is_staff ? [ADMIN_NAV] : [...CUSTOMER_NAV, ADMIN_NAV]
   const { unreadCount, fetchNotifications } = useNotifications()
   const [showNotifs, setShowNotifs] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const initials = user?.username?.slice(0, 2).toUpperCase() || 'U'
-
   const handleBell = () => {
     fetchNotifications()
     setShowNotifs(v => !v)
@@ -32,12 +34,13 @@ export default function AppShell({ page, navigate, children }) {
 
   const handleNav = (id) => {
     navigate(id)
-    setSidebarOpen(false)  // close sidebar after navigation on mobile
+    setSidebarOpen(false)  
   }
+
+  const ALL_NAV = [...CUSTOMER_NAV, ADMIN_NAV]
 
   return (
     <div className="app">
-      {/* Overlay — shown behind sidebar on mobile when open */}
       {sidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
@@ -65,6 +68,12 @@ export default function AppShell({ page, navigate, children }) {
               key={n.id}
               className={`nav-item ${page === n.id ? 'nav-active' : ''}`}
               onClick={() => handleNav(n.id)}
+              style={n.id === 'admin' ? {
+                marginTop: 8,
+                borderTop: '1px solid rgba(255,255,255,0.15)',
+                paddingTop: 14,
+                color: page === n.id ? '#fff' : '#fbbf24',
+              } : {}}
             >
               <span className="nav-icon">{n.icon}</span>
               <span>{n.label}</span>
@@ -85,7 +94,6 @@ export default function AppShell({ page, navigate, children }) {
       </aside>
 
       <header className="top-header">
-        {/* Hamburger button — only visible on mobile */}
         <button
           className="hamburger-btn"
           onClick={() => setSidebarOpen(v => !v)}
@@ -98,8 +106,8 @@ export default function AppShell({ page, navigate, children }) {
 
         <div className="header-left">
           <h1 className="page-title">
-            {NAV.find(n => n.id === page)?.icon}{' '}
-            {NAV.find(n => n.id === page)?.label}
+            {ALL_NAV.find(n => n.id === page)?.icon}{' '}
+            {ALL_NAV.find(n => n.id === page)?.label}
           </h1>
           <p className="page-sub">Carmen, Cagayan de Oro City</p>
         </div>

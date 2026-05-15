@@ -10,17 +10,51 @@ import SchedulePage   from '../pages/SchedulePage'
 import HistoryPage    from '../pages/HistoryPage'
 import TrackPage      from '../pages/TrackPage'
 import ProfilePage    from '../delivered/ProfilePage'
+import AdminPage      from '../pages/AdminPage'
+import ActivatePage   from '../pages/ActivatePage'
 
 import AppShell from '../components/AppShell'
 
 export default function AppRouter() {
+
   const { user } = useAuth()
-  const [page, setPage] = useState(user ? 'home' : 'welcome')
-  const [pageProps, setPageProps] = useState({})
+
+  const getInitialPage = () => {
+    const path = window.location.pathname
+    const match = path.match(/^\/activate\/([^/]+)\/([^/]+)$/)
+    if (match) return 'activate'
+    return user ? (user.is_staff ? 'admin' : 'home') : 'welcome'
+  }
+
+  const getInitialProps = () => {
+    const path = window.location.pathname
+    const match = path.match(/^\/activate\/([^/]+)\/([^/]+)$/)
+    if (match) return { uid: match[1], token: match[2] }
+    return {}
+  }
+
+  const [page, setPage] = useState(getInitialPage)
+  const [pageProps, setPageProps] = useState(getInitialProps)
 
   const navigate = (to, props = {}) => {
+
+    if (to === 'admin' && !user?.is_staff) {
+      setPage('home')
+      setPageProps({})
+      return
+    }
+
+    if (user?.is_staff && ['home', 'browse', 'history', 'profile', 'track'].includes(to)) {
+      setPage('admin')
+      setPageProps({})
+      return
+    }
     setPageProps(props)
     setPage(to)
+  }
+
+  if (page === 'activate') {
+    return <ActivatePage uid={pageProps.uid} token={pageProps.token} navigate={navigate} />
   }
 
   if (!user) {
@@ -29,16 +63,17 @@ export default function AppRouter() {
     return <WelcomePage navigate={navigate} />
   }
 
-  const SHELL_PAGES = ['home', 'browse', 'history', 'profile', 'track']
+  const SHELL_PAGES = ['home', 'browse', 'history', 'profile', 'track', 'admin']
 
   if (SHELL_PAGES.includes(page)) {
     return (
       <AppShell page={page} navigate={navigate}>
-        {page === 'home'    && <HomePage    navigate={navigate} />}
-        {page === 'browse'  && <BrowsePage  navigate={navigate} {...pageProps} />}
-        {page === 'history' && <HistoryPage navigate={navigate} />}
-        {page === 'profile' && <ProfilePage navigate={navigate} />}
-        {page === 'track'   && <TrackPage   navigate={navigate} {...pageProps} />}
+        {page === 'home'    && !user.is_staff && <HomePage    navigate={navigate} />}
+        {page === 'browse'  && !user.is_staff && <BrowsePage  navigate={navigate} {...pageProps} />}
+        {page === 'history' && !user.is_staff && <HistoryPage navigate={navigate} />}
+        {page === 'profile' && !user.is_staff && <ProfilePage navigate={navigate} />}
+        {page === 'track'   && !user.is_staff && <TrackPage   navigate={navigate} {...pageProps} />}
+        {page === 'admin'   && user.is_staff  && <AdminPage   navigate={navigate} />}
       </AppShell>
     )
   }
@@ -46,5 +81,5 @@ export default function AppRouter() {
   if (page === 'order')    return <OrderPage    navigate={navigate} {...pageProps} />
   if (page === 'schedule') return <SchedulePage navigate={navigate} {...pageProps} />
 
-  return <HomePage navigate={navigate} />
+  return user.is_staff ? <AdminPage navigate={navigate} /> : <HomePage navigate={navigate} />
 }
